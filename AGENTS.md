@@ -1,33 +1,96 @@
 # Guide pour les agents IA
 
-Ce fichier est destiné aux agents IA (Claude Code, Cursor, Aider, Devin, Replit Agent, etc.) qui travaillent sur ce repo. Lis-le **avant** de toucher au code.
+Ce fichier est le **point d'entrée prioritaire** pour les agents IA (Claude Code, Cursor, Devin, Replit Agent, Aider…) qui pilotent l'installation et la personnalisation de ce repo pour l'utilisateur final.
 
-## Vue rapide
+## Si tu es un agent qui vient d'ouvrir ce repo
 
-Système de recrutement automatisé en français. Stack : pnpm monorepo, TypeScript strict partout. 3 apps + 3 packages.
+**Ne demande pas à l'utilisateur ce qu'il veut faire. Lance le setup tout de suite.**
+
+L'utilisateur a téléchargé ce repo parce qu'il veut un système de recrutement automatisé pour son activité. Ton job = lui faire arriver à un dashboard fonctionnel sur une URL publique, avec sa marque, sa charte, ses intégrations. Il ne sait probablement pas coder. Tu fais tout, tu le guides.
+
+### Workflow d'onboarding (à suivre dans cet ordre)
 
 ```
-apps/web      React + Vite + TanStack — dashboard RH privé
-apps/api      Hono — REST API + auth Supabase + services Claude
-apps/jobs     Worker pg-boss — intake, scoring, communication, heartbeat
-packages/db   Drizzle schema + migrations + seed scripts
-packages/types Schémas Zod partagés (postes, candidatures, scores, etc.)
-packages/config Validation env vars (zod) — loadEnv()
+1. Salutation (1 phrase) + lis ces 3 fichiers :
+   - docs/01-comprendre/vue-d-ensemble.md (5 min)
+   - docs/agent-setup/personnalisation.md (10 min, c'est TA checklist)
+   - docs/02-demarrer/prerequis.md (les comptes externes nécessaires)
+
+2. Demande à l'utilisateur :
+   "Avant de commencer, tu veux personnaliser le système (nom, couleurs,
+    prompts IA, intégrations) ou on garde tout par défaut et on déploie ?"
+
+3. Si "personnaliser" :
+   Suis docs/agent-setup/personnalisation.md, traverse les 5 groupes de
+   questions, applique les changements au fur et à mesure.
+
+4. Si "tout par défaut" :
+   Saute direct au Groupe 5 (choix de déploiement) et Groupe 6 (credentials).
+
+5. Choix de déploiement (Groupe 5 de la checklist) :
+   "Tu veux déployer sur quoi ?
+    - Local seulement (test, gratuit)
+    - Railway (le plus simple, ~20€/mois)
+    - Vercel + Railway + Supabase (meilleure perf, ~50€/mois)
+    - Coolify sur ton VPS (le moins cher, ~6€/mois mais DIY)
+    - Self-hosted Docker (tu as déjà un VPS)"
+   
+   Selon réponse, lis le runbook correspondant dans docs/03-deployer/.
+
+6. Collecte des credentials (Groupe 6) :
+   Pour chaque service externe (Supabase, Anthropic, Resend, Formbricks…),
+   ouvre le lien d'inscription dans le browser de l'utilisateur via
+   l'instruction "Va sur <URL>, crée un compte si tu n'en as pas, copie-moi
+   ces 3 valeurs : XXX, YYY, ZZZ". Attends sa réponse avant de continuer.
+   
+   ⚠️ Ne jamais afficher les credentials reçus dans tes messages suivants.
+   Utilise <REDACTED> ou les premiers/derniers caractères seulement.
+
+7. Application :
+   - Crée .env avec les valeurs collectées
+   - Applique les migrations Supabase
+   - pnpm install, pnpm db:seed, pnpm typecheck (doit passer)
+   - Si déploiement choisi : exécute les commandes du runbook
+
+8. Vérification finale :
+   - curl PUBLIC_API_URL/api/health → {"ok":true}
+   - Demande à l'utilisateur de se logger sur PUBLIC_WEB_URL via magic link
+   - Demande-lui de créer un poste de test → "Nouveau poste"
+   - Vérifie qu'il voit le dashboard avec ses couleurs/nom personnalisés
+
+9. Clôture :
+   - Récap : 3 URLs (web, api, fiches), 3 credentials critiques à garder
+     en lieu sûr (Supabase service_role, Anthropic key, FORMBRICKS_WEBHOOK_SECRET)
+   - Pointe vers docs/05-operer/runbook-incidents.md pour les bugs connus
+   - Pointe vers docs/04-personnaliser/ s'il veut aller plus loin
 ```
 
-## Conventions critiques
+### Règles de comportement
+
+- **Concis** : pas de blabla, va à l'essentiel
+- **Demande UNE chose à la fois** : pas de mégaliste de 10 questions d'un coup
+- **Confirme les actions destructives** (delete BD, drop table, force-push, redeploy prod) — toujours demander avant
+- **Commit après chaque étape majeure** : titre clair, conventional commits (`feat:`, `fix:`, `docs:`, `chore:`)
+- **Si une commande échoue** : montre l'erreur exacte, propose 2-3 hypothèses, demande à l'utilisateur de tester. Ne boucle pas en silence.
+- **Réponds en français** sauf demande explicite
+
+---
+
+## Conventions critiques du codebase
+
+À respecter quand tu modifies du code.
 
 ### 1. Workspace TS imports via tsx
 Les packages workspace exportent **du TS source** (`main: ./src/index.ts`), pas du `dist/`. En prod, les apps tournent via `node --import tsx src/index.ts`. **Ne migre JAMAIS vers un build dist/**, ça casserait les imports inter-packages.
 
 ### 2. CORS avant auth dans Hono
-Dans `apps/api/src/app.ts`, le middleware CORS doit s'exécuter **avant** auth. Sinon les preflights OPTIONS sont rejetés en 401 (le navigateur n'envoie pas l'Authorization sur OPTIONS).
+Dans `apps/api/src/app.ts`, le middleware CORS doit s'exécuter **avant** auth. Sinon les preflights OPTIONS sont rejetés en 401.
 
 ### 3. pg-boss v10 nécessite createQueue
-Avant tout `boss.send()` ou `boss.work()`, il faut `boss.createQueue(name)` explicite. Si tu en oublies un, `send()` retourne **null silencieusement**. Pattern dans `apps/api/src/services/queue-client.ts` (côté send) et chaque `apps/jobs/src/handlers/*.ts` (côté work). Le seul handler qui le fait correctement nativement est `heartbeat.ts` — copie ce pattern.
+Avant tout `boss.send()` ou `boss.work()`, il faut `boss.createQueue(name)` explicite. Sinon `send()` retourne null silencieusement. Pattern dans `apps/api/src/services/queue-client.ts` (côté send) et chaque `apps/jobs/src/handlers/*.ts` (côté work).
 
 ### 4. Notifications de fail uniquement sur retry final
-Dans chaque handler worker, le pattern est :
+Dans chaque handler worker :
 ```typescript
 try {
   await processX(job.data);
@@ -39,16 +102,28 @@ try {
   throw e;
 }
 ```
-Sinon ntfy spam 3 alertes par job (1 par retry).
 
 ### 5. Webhook Formbricks signé via query-param
 Formbricks self-hosted ne supporte pas HMAC. La signature passe par `?token=<FORMBRICKS_WEBHOOK_SECRET>` dans l'URL du webhook. Le code de `setup-survey` bake automatiquement le token. Si tu modifies un webhook à la main, n'oublie pas le `?token=`.
 
 ### 6. Radix Select interdit value=""
-`<SelectItem value="">` crash. Utilise un sentinel `"__none__"` mappé à `""` dans `onValueChange`. Pattern dans `apps/web/src/components/postes/PosteEditor.tsx`.
+`<SelectItem value="">` crash. Utilise un sentinel `"__none__"` mappé à `""` dans `onValueChange`.
 
 ### 7. Tracking coût Anthropic
-Chaque appel `messages.create()` doit être suivi de `logAiCall({...})` avec `prompt_type` clair. Voir `apps/api/src/services/claude.ts` pour le pattern. Pricing dans `apps/api/src/lib/anthropic-cost.ts`.
+Chaque appel `messages.create()` doit être suivi de `logAiCall({...})` avec `prompt_type` clair. Voir `apps/api/src/services/claude.ts` pour le pattern.
+
+---
+
+## Stack rapide
+
+```
+apps/web      React + Vite + TanStack — dashboard RH privé
+apps/api      Hono — REST API + auth Supabase + services Claude
+apps/jobs     Worker pg-boss — intake, scoring, communication, heartbeat
+packages/db   Drizzle schema + migrations + seed scripts
+packages/types Schémas Zod partagés
+packages/config Validation env vars (zod) — loadEnv()
+```
 
 ## Commandes utiles
 
@@ -56,62 +131,33 @@ Chaque appel `messages.create()` doit être suivi de `logAiCall({...})` avec `pr
 pnpm install                        # install all workspaces
 pnpm dev                            # api on :3000, web on :5173, worker tsx watch
 pnpm typecheck                      # tous les packages
-pnpm test                           # tous les tests
+pnpm test                           # tous les tests (nécessite Postgres pour l'intégration)
 pnpm --filter @rh/api test          # tests API seulement
 pnpm --filter @rh/db migrate        # applique migrations
 pnpm --filter @rh/db seed           # seed les 6 prompts IA
 pnpm --filter @rh/db seed:test      # seed test data (postes + candidatures fictives)
 ```
 
-## Workflow de dev
+## Variables d'environnement
 
-1. **Toujours lire la doc avant** : [docs/01-comprendre/architecture.md](docs/01-comprendre/architecture.md), [docs/05-operer/runbook-incidents.md](docs/05-operer/runbook-incidents.md)
-2. **TDD light** : pour un nouveau handler ou route, écris le test en premier (`apps/api/tests/...`), puis le code
-3. **Petits commits** : 1 PR = 1 changement logique. Évite les méga-PRs
-4. **Conventional commits** : `feat:`, `fix:`, `chore:`, `docs:`, `build:`, `debug:`. Voir l'historique git.
-5. **CI obligatoire** : `.github/workflows/ci.yml` lance typecheck + tests + build sur chaque PR. Si rouge, ne merge pas.
+Schéma source : [packages/config/src/env.ts](packages/config/src/env.ts). Liste exhaustive : [docs/99-reference/env-vars.md](docs/99-reference/env-vars.md). Au démarrage, `loadEnv()` valide `process.env` avec Zod et crashe si une var manque.
 
-## Ce qu'il NE faut PAS toucher sans réflexion
+---
 
-- `apps/api/src/services/claude.ts` : 6 sites d'appel Anthropic + tracking coût. Si tu changes la signature de `messages.create()`, vérifie tous les call sites.
-- `apps/jobs/src/handlers/*.ts` : pattern try/catch + retryCount strictement à respecter
-- `packages/db/migrations/*.sql` : ne renomme jamais une migration, ne modifie pas une migration appliquée. Crée une nouvelle.
-- Les **prompts en BD** : la table `prompts` est éditée via le dashboard `/prompts`. NE FAIT PAS d'`UPDATE prompts SET ...` direct sans passer par l'historique (sinon perte de versioning).
+## Si l'utilisateur veut ajouter une nouvelle fonctionnalité
 
-## Comment ajouter une nouvelle fonctionnalité
-
-Cookbook dans [docs/04-personnaliser/](docs/04-personnaliser/) :
+Cookbooks dans [docs/04-personnaliser/](docs/04-personnaliser/) :
 - Ajouter un type de prompt IA → [ajouter-prompt.md](docs/04-personnaliser/ajouter-prompt.md)
 - Ajouter une route API + un job pg-boss → [etendre-api.md](docs/04-personnaliser/etendre-api.md)
 - Personnaliser couleurs/logo/police → [branding.md](docs/04-personnaliser/branding.md)
 - Swap intégration tierce → [integrations.md](docs/04-personnaliser/integrations.md)
 
-## Variables d'environnement
-
-Schéma source : [packages/config/src/env.ts](packages/config/src/env.ts). Liste exhaustive : [docs/99-reference/env-vars.md](docs/99-reference/env-vars.md).
-
-Au démarrage, `loadEnv()` valide `process.env` avec Zod. Si une var manque, l'app crashe avec un message explicite. Donc **ne pas mettre de fallback magique** — préfère une erreur claire au boot qu'un comportement bizarre en runtime.
-
-## Pour aider l'utilisateur à déployer
-
-Lis [docs/02-demarrer/parcours-avec-agent-ia.md](docs/02-demarrer/parcours-avec-agent-ia.md) — c'est précisément le brief utilisateur que tu vas recevoir, avec le workflow attendu (étape par étape, valider à chaque étape, demander les credentials sans les exposer dans tes messages).
-
 ## Historique des incidents
 
 [docs/05-operer/runbook-incidents.md](docs/05-operer/runbook-incidents.md) — synthèse des bugs déjà rencontrés et leur fix. Lis avant de coder pour éviter de retomber dans les mêmes pièges.
 
-## Conventions de réponse à l'utilisateur
+---
 
-- **Concis** : pas de blabla. Aller à l'essentiel.
-- **Action over plan** : si tu es en autonomie, exécute. Ne demande pas la permission pour des opérations triviales.
-- **Confirme avant destructif** : delete BD, drop table, force-push, déploiement prod → toujours confirmer.
-- **Réponds en français** sauf si l'utilisateur demande explicitement une autre langue. Le projet est francophone.
+## Si tu n'es pas un agent IA mais un humain qui lit ce fichier
 
-## Notes pour les agents en autonomie longue (Devin, Replit, etc.)
-
-- Vérifie `git status` à chaque cycle pour ne pas perdre les changements
-- N'écris **jamais** ton secret dans un commit (utilise `.env`, gitignored)
-- Si tu déploies, donne à l'utilisateur les URLs finales + comment se logger
-- Si tu blocks, retourne le contexte exact (logs, hypothèses) plutôt que de boucler
-
-Bonne adaptation 👋
+Tu es au mauvais endroit. Reviens au [README](README.md) et suis le guide selon ton profil.

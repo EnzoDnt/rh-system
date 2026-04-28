@@ -1,85 +1,87 @@
-# Recrutement OS
+# Recrutement automatisé
 
-> Système de recrutement automatisé : un candidat soumet sa candidature → l'IA score son profil → un email personnalisé est envoyé automatiquement.
+Système complet pour recevoir des candidatures, les scorer avec Claude (IA), et envoyer des emails personnalisés au candidat.
 
 ```
-┌─────────────┐     ┌──────────┐     ┌──────────┐     ┌─────────┐
-│ Formulaire  │ ──▶ │ Webhook  │ ──▶ │ Worker   │ ──▶ │  Email  │
-│ (candidat)  │     │ + intake │     │ scoring  │     │ + Cal.  │
-└─────────────┘     └──────────┘     └──────────┘     └─────────┘
-                          │                │                │
-                          ▼                ▼                ▼
-                    ┌──────────────────────────────────────────┐
-                    │       Dashboard RH (validation manuelle) │
-                    └──────────────────────────────────────────┘
+Candidat remplit un formulaire
+        │
+        ▼
+   Score IA + flag injection
+        │
+        ▼
+   Brouillon d'email généré
+        │
+        ▼
+   Tu valides et envoies (1 clic)
 ```
 
-## Pour qui ?
+---
 
-- **Recruteurs / DRH** qui veulent automatiser le tri des CVs sans perdre la personnalisation des emails
-- **Cabinets de recrutement** qui industrialisent leur process pour des dizaines de postes simultanés
-- **Solos / consultants RH** qui veulent un outil interne sans payer un SaaS coûteux
-- **Devs / agences** qui veulent un kit de base à customiser pour leurs clients
+## La méthode recommandée : avec ton agent IA
 
-## Choisis ton parcours
+Ce projet est conçu pour que **ton agent IA fasse l'install pour toi**. Tu n'as besoin de rien coder.
 
-| Profil | Lien |
+### En 3 étapes
+
+1. **Clone le repo** sur ta machine :
+   ```bash
+   git clone https://github.com/ecosysteme-zia/rh-system.git
+   cd rh-system
+   ```
+
+2. **Ouvre le repo dans ton agent IA** (Claude Code, Cursor, Devin, Replit Agent, Aider…)
+
+3. **Colle ce message** :
+   > "Lis [AGENTS.md](AGENTS.md) et fais le setup complet pour moi."
+
+L'agent va :
+- Te poser 5-10 questions sur la personnalisation (nom, couleurs, ton des emails, industrie)
+- Te demander où tu veux déployer (Railway, Vercel, Coolify, ou local pour tester)
+- Te guider pour créer les comptes externes (Supabase, Anthropic, Resend, Formbricks)
+- Tout configurer dans le code et le déployer
+
+Pour chaque question, tu peux répondre **"garde par défaut"** ou personnaliser. **Tu n'écris pas une ligne de code.**
+
+⏱️ **Temps total** : 30-60 min selon ce que tu personnalises.
+
+---
+
+## Si tu es développeur et tu veux faire ça à la main
+
+Pas de souci, va sur [docs/02-demarrer/parcours-developpeur.md](docs/02-demarrer/parcours-developpeur.md). Setup en 30 min sans agent IA.
+
+---
+
+## Si tu es non-tech et tu n'as pas d'agent IA de code
+
+Tu peux quand même faire le setup en clic-à-clic, c'est juste plus long et plus fastidieux. Va sur [docs/02-demarrer/parcours-clic-a-clic.md](docs/02-demarrer/parcours-clic-a-clic.md). Compte 2h.
+
+⚠️ **Mais sérieusement, prends Claude Code ou Cursor**. C'est gratuit (Claude Code) ou ~20$/mois (Cursor), et ça te fera économiser des heures sur ce projet et tous les suivants.
+
+---
+
+## Documentation
+
+| Tu cherches… | Où aller |
 |---|---|
-| 🧠 **Curieux**, je veux comprendre ce que ça fait | [docs/01-comprendre/vue-d-ensemble.md](docs/01-comprendre/vue-d-ensemble.md) |
-| 💻 **Développeur**, je veux le lancer en local | [docs/02-demarrer/parcours-developpeur.md](docs/02-demarrer/parcours-developpeur.md) |
-| 🖱️ **Non-tech**, je veux le déployer en cliquant | [docs/02-demarrer/parcours-clic-a-clic.md](docs/02-demarrer/parcours-clic-a-clic.md) |
-| 🤖 **Avec mon agent IA** (Claude Code, Cursor) | [docs/02-demarrer/parcours-avec-agent-ia.md](docs/02-demarrer/parcours-avec-agent-ia.md) |
-| 🚀 **Prêt à déployer**, je choisis l'option d'hébergement | [docs/03-deployer/matrice-de-choix.md](docs/03-deployer/matrice-de-choix.md) |
-| 🎨 **Je veux adapter** prompts, branding, intégrations | [docs/04-personnaliser/](docs/04-personnaliser/) |
-| 🔧 **C'est en prod**, je gère les incidents | [docs/05-operer/runbook-incidents.md](docs/05-operer/runbook-incidents.md) |
+| Comprendre ce que ça fait, en détail | [docs/01-comprendre/](docs/01-comprendre/) |
+| Adapter à ta marque ou ton industrie | [docs/04-personnaliser/](docs/04-personnaliser/) |
+| Déployer (5 options détaillées) | [docs/03-deployer/matrice-de-choix.md](docs/03-deployer/matrice-de-choix.md) |
+| Faire tourner ça en prod | [docs/05-operer/](docs/05-operer/) |
+| Référence technique (API, schéma BD…) | [docs/99-reference/](docs/99-reference/) |
 
-## Stack technique
-
-- **Frontend** : React 19 + Vite + TanStack Router/Query
-- **Backend** : Hono (Node) + Drizzle ORM + Zod
-- **Worker** : pg-boss (queues persistées en Postgres, pas de Redis)
-- **DB + Auth** : Supabase (Postgres + magic link)
-- **IA** : Anthropic Claude Sonnet (scoring, génération emails, fiches, formulaires)
-- **Form builder** : Formbricks (self-hostable)
-- **Email** : Resend
-- **Scheduling** : Calendly (optionnel)
-
-Pour les pourquoi de ces choix : [docs/01-comprendre/pourquoi-ces-choix.md](docs/01-comprendre/pourquoi-ces-choix.md).
-
-## En 2 minutes
-
-```bash
-git clone <ce-repo>
-cd recruit-os
-cp .env.example .env  # remplis tes credentials (voir docs/02-demarrer/prerequis.md)
-pnpm install
-pnpm --filter @rh/db migrate    # applique le schéma
-pnpm --filter @rh/db seed       # seed les 6 prompts IA
-pnpm dev                        # web :5173, api :3000
-```
-
-Login par magic link sur ton email → dashboard sur `localhost:5173/postes` → "Nouveau poste".
+---
 
 ## Conditions d'utilisation
 
-⚠️ **Ce code n'est pas open-source au sens classique.** Il est distribué exclusivement aux membres de l'écosystème ZénithIA (formation IA et automatisation). Tu peux :
+⚠️ Ce code n'est **pas** open-source au sens classique. Il est distribué exclusivement aux membres de l'écosystème ZénithIA. Tu peux le forker, le déployer chez toi, le vendre comme prestation à tes clients. Tu ne peux **pas** le redistribuer publiquement ni le revendre comme produit.
 
-- ✅ **Forker** et adapter à tes besoins
-- ✅ **Déployer** pour ton activité ou celle de tes clients
-- ✅ **Vendre des prestations** basées sur ce système
-- ❌ **Redistribuer** publiquement (mirror, ZIP partagé, repo public miroir)
-- ❌ **Revendre** comme produit autonome
+→ [CONDITIONS.md](CONDITIONS.md) pour le détail.
 
-Voir [CONDITIONS.md](CONDITIONS.md) pour le détail.
+---
 
-## Documentation pour les agents IA
+## Stack
 
-[AGENTS.md](AGENTS.md) — guide pour Claude Code / Cursor / autres agents qui adapteraient ce repo.
+React 19 + Vite + Hono + Drizzle + pg-boss + Supabase + Claude Sonnet + Formbricks + Resend.
 
-## Contributing
-
-C'est un projet à code partagé restreint, pas un OSS classique — donc **pas de PR de l'extérieur**. Si tu es membre de l'écosystème et que tu veux remonter un bug ou suggérer une amélioration : ouvre une issue sur le canal Skool, ou un GitHub Issue avec template (voir `.github/ISSUE_TEMPLATE/`).
-
-## Crédits
-
-Conçu et maintenu pour l'écosystème ZénithIA.
+Pour les pourquoi de ces choix : [docs/01-comprendre/pourquoi-ces-choix.md](docs/01-comprendre/pourquoi-ces-choix.md).
