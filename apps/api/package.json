@@ -1,0 +1,42 @@
+{
+  "name": "@rh/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/services/claude.js": "./src/services/claude.ts",
+    "./src/services/claude-prompts.js": "./src/services/claude-prompts.ts",
+    "./src/services/calendly.js": "./src/services/calendly.ts"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc -p tsconfig.json",
+    "start": "node --env-file=../../.env dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node --env-file=../../.env ../../node_modules/vitest/vitest.mjs run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@hono/node-server": "^1.13.7",
+    "@hono/zod-openapi": "^0.18.3",
+    "@hono/zod-validator": "^0.4.1",
+    "@rh/config": "workspace:*",
+    "@rh/db": "workspace:*",
+    "@rh/types": "workspace:*",
+    "@supabase/supabase-js": "^2.45.4",
+    "pg-boss": "^10.1.5",
+    "drizzle-orm": "^0.36.4",
+    "hono": "^4.6.13",
+    "jose": "^5.9.6",
+    "unpdf": "^0.12.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

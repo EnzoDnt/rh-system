@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@500;600;700&display=swap');
+@import "tailwindcss";
+
+/* Design tokens — verbatim from docs/migration/07-design-system.md §2 */
+@theme {
+  --color-primary: #c4841d;
+  --color-primary-hover: #a06b15;
+  --color-dark: #2c1810;
+  --color-bg: #f7f6f4;
+  --color-surface: #fefdfb;
+  --color-border: #eceae6;
+  --color-success: #2d8a4e;
+  --color-error: #c0392b;
+  --color-flagged: #fdf8f0;
+  --color-text: #1a1a1a;
+  --color-text-secondary: #4a4541;
+  --color-text-muted: #a39e96;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: "Lora", Georgia, serif;
+
+  --radius: 4px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+html, body, #root { height: 100%; }
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-family: var(--font-serif); color: var(--color-dark); }
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}

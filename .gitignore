@@ -1,0 +1,28 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.*.local
+.DS_Store
+*.log
+.turbo/
+.next/
+.vercel/
+.trigger/
+coverage/
+.vscode/
+.idea/
+.claude/
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# tsc emit artifacts that occasionally land next to sources
+# (apps/web doesn't emit anymore — noEmit:true — but stray files from past builds shouldn't be tracked)
+apps/web/src/**/*.js
+apps/web/src/**/*.js.map
+apps/web/src/**/*.d.ts
+apps/web/src/**/*.d.ts.map
+# Hand-authored Vite env declarations are NOT a build artifact
+!apps/web/src/vite-env.d.ts

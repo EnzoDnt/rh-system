@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/.turbo
+**/.next
+**/.vercel
+**/.trigger
+**/coverage
+.git
+.github
+docs
+data
+*.log
+.env
+.env.*
+README.md

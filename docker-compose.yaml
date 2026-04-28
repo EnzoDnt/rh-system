@@ -1,0 +1,67 @@
+services:
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Coolify injects these from Build Variables (set in the UI)
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_API_URL: ${VITE_API_URL}
+    restart: unless-stopped
+    # Coolify routes rh.your-domain.example → this container's port 80 via Traefik.
+    # No `ports:` key — Coolify's strict validator rejects `ports: []`, and
+    # leaving it out is equivalent (Traefik joins via the Docker network).
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/health"]
+      interval: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_FROM: ${RESEND_FROM}
+      CALENDLY_TOKEN: ${CALENDLY_TOKEN}
+      APIFY_API_KEY: ${APIFY_API_KEY}
+      FORMBRICKS_API_KEY: ${FORMBRICKS_API_KEY}
+      FORMBRICKS_BASE_URL: ${FORMBRICKS_BASE_URL}
+      FORMBRICKS_ENVIRONMENT_ID: ${FORMBRICKS_ENVIRONMENT_ID}
+      PUBLIC_API_URL: ${PUBLIC_API_URL}
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL}
+      PUBLIC_FICHES_URL: ${PUBLIC_FICHES_URL}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"]
+      interval: 30s
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/jobs/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_FROM: ${RESEND_FROM}
+      CALENDLY_TOKEN: ${CALENDLY_TOKEN}
+      APIFY_API_KEY: ${APIFY_API_KEY}
+      NTFY_TOPIC: ${NTFY_TOPIC}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "node dist/index.js"]
+      interval: 60s
