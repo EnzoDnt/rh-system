@@ -12,6 +12,11 @@ const Communications = lazy(() => import("./routes/communications.js"));
 const Analytics = lazy(() => import("./routes/analytics.js"));
 const Prompts = lazy(() => import("./routes/prompts.js"));
 const Notifications = lazy(() => import("./routes/notifications.js"));
+const PostulerPage = lazy(() =>
+  import("./components/public/ApplicationForm.js").then((m) => ({
+    default: m.ApplicationForm,
+  })),
+);
 
 const Spinner = () => <div className="p-10 text-text-muted">Chargement…</div>;
 
@@ -20,6 +25,8 @@ export default function App() {
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* Public route — no auth, no layout wrapper */}
+        <Route path="/postuler/:slug" element={<PostulerPage />} />
         <Route element={<Layout />}>
           <Route index element={<Navigate to="/postes" replace />} />
           <Route path="postes" element={<PostesIndex />} />
