@@ -2,7 +2,7 @@
 
 > **Source** : 3 flow.yaml ([intake](../../f/rh/intake.flow/flow.yaml), [scoring](../../f/rh/scoring.flow/flow.yaml), [communication](../../f/rh/communication.flow/flow.yaml)) + leurs inline scripts + le schedule [notify_errors](../../f/rh/notify_errors.schedule.yaml).
 >
-> **Cible recommandée** : Trigger.dev v4 (TS). Équivalents possibles : Inngest, Celery, BullMQ. Le mapping détaillé est donné par flow.
+> **Cible recommandée** : pg-boss (TS). Équivalents possibles : Inngest, Celery, BullMQ. Le mapping détaillé est donné par flow.
 
 ---
 
@@ -15,15 +15,15 @@ Les 3 flows actuels sont des séquences async :
 - **Retry-friendly** : un échec ponctuel sur Apify ou Gmail ne doit pas perdre la candidature
 - **Idempotents** : on doit pouvoir re-jouer un step
 
-Trigger.dev (ou équivalent) apporte : retry exponentiel, dashboard de runs, logs structurés, reprise sur échec, déduplication, scheduling cron natif.
+pg-boss (ou équivalent) apporte : retry exponentiel, dashboard de runs, logs structurés, reprise sur échec, déduplication, scheduling cron natif.
 
 ---
 
 ## 1. Job `intake` — Réception d'une candidature
 
 ### 1.1 Trigger
-- **Source actuelle** : webhook Formbricks → HTTP trigger Windmill `POST /rh/formbricks-webhook` → flow `f/rh/intake`
-- **Cible** : route Hono `POST /webhooks/formbricks` → `tasks.trigger("intake", payload)` → task Trigger.dev `intake`
+- **Pipeline** : webhook Formbricks → `POST /webhooks/formbricks` (Hono) → enqueue `intake` (pg-boss) → worker traite
+- **Cible** : route Hono `POST /webhooks/formbricks` → `tasks.trigger("intake", payload)` → job pg-boss `intake`
 
 ### 1.2 Schéma d'entrée
 ```ts
@@ -108,13 +108,13 @@ Trigger.dev (ou équivalent) apporte : retry exponentiel, dashboard de runs, log
 #### Step 6 : `trigger_scoring`
 - **Source** : [retourner_l'identifiant_de_candidature_pour_le_scoring.inline_script.ts](../../f/rh/intake.flow/retourner_l'identifiant_de_candidature_pour_le_scoring.inline_script.ts)
 - **Logique** : enqueue le task `scoring` avec `{ candidature_id }`
-- **Cible Trigger.dev** : `await scoringTask.trigger({ candidature_id })`
+- **Cible pg-boss** : `await scoringTask.trigger({ candidature_id })`
 - **Output** : `{ candidature_id, job_id }`
 
-### 1.4 Pseudo-code Trigger.dev cible
+### 1.4 Pseudo-code pg-boss (la stack utilisée)
 
 ```ts
-import { task } from "@trigger.dev/sdk/v3";
+import { task } from "pg-boss";
 import { db } from "../db";
 import { extractPdfText, scrapeLinkedin } from "../services";
 import { scoringTask } from "./scoring";
@@ -156,7 +156,7 @@ export const intakeTask = task({
 
 ### 2.1 Trigger
 - **Source actuelle** : appelé par `intake` (step 6) ou par `rescore_candidature` backend
-- **Cible** : task Trigger.dev `scoring` invoqué par `intakeTask` ou par `POST /api/candidatures/:id/rescore`
+- **Cible** : job pg-boss `scoring` invoqué par `intakeTask` ou par `POST /api/candidatures/:id/rescore`
 
 ### 2.2 Schéma d'entrée
 ```ts
@@ -214,7 +214,7 @@ export const intakeTask = task({
 - **Source** : [sauvegarder_le_score_et_mettre_à_jour_le_statut.inline_script.ts](../../f/rh/scoring.flow/sauvegarder_le_score_et_mettre_à_jour_le_statut.inline_script.ts)
 - **Logique** :
   1. INSERT score avec ON CONFLICT (candidature_id) DO UPDATE (idempotent — re-scoring possible)
-  2. UPDATE jsonb scores_details via CTE (workaround Windmill)
+  2. UPDATE jsonb scores_details (Drizzle JSONB)
   3. UPDATE candidatures SET statut='score'
 - **Output** : `{ success: true }`
 
@@ -241,7 +241,7 @@ export const intakeTask = task({
 - **Logique** : INSERT communications avec statut='brouillon'
 - **Output** : `{ success: true }`
 
-### 2.4 Pseudo-code Trigger.dev cible
+### 2.4 Pseudo-code pg-boss (la stack utilisée)
 
 ```ts
 export const scoringTask = task({
@@ -290,7 +290,7 @@ export const scoringTask = task({
 
 ### 3.1 Trigger
 - **Source actuelle** : appelé par `validate_and_send` backend (clic sur "Valider et envoyer" dans l'UI)
-- **Cible** : task Trigger.dev `communication` invoqué par `POST /api/communications/:id/send`
+- **Cible** : job pg-boss `communication` invoqué par `POST /api/communications/:id/send`
 
 ### 3.2 Schéma d'entrée
 ```ts
@@ -300,7 +300,7 @@ export const scoringTask = task({
 ### 3.3 Steps
 
 #### Step 1 : `load_comm`
-- **Source** : [load_comm.inline_script.ts](../../f/rh/communication.flow/load_comm.inline_script.ts) (⚠️ fichier qui pointe vers un `.bun.ts` non résolu — limitation Windmill)
+- **Source** : [load_comm.inline_script.ts](../../f/rh/communication.flow/load_comm.inline_script.ts) 
 - **Logique attendue** (déduite du `flow.yaml` et de l'usage des outputs) :
   ```sql
   SELECT
@@ -369,135 +369,3 @@ export const scoringTask = task({
     - type='relance' → statut='en_cours'
     - type='accuse_reception' → statut inchangé
 
-> **À documenter et confirmer en runtime** : la mécanique exacte de mise à jour du statut candidature après envoi d'email n'est pas extractible des sources Windmill (fichiers `.bun.ts` absents). À reconstruire à partir des flux UI observés.
-
-### 3.4 Gestion d'erreur
-- Si `send_gmail` échoue → UPDATE communications SET statut='erreur' (à implémenter si pas déjà fait)
-- Retry exponentiel sur erreurs 5xx Gmail (Trigger.dev gère ça nativement)
-
----
-
-## 4. Cron `notify_errors` — Monitoring
-
-### 4.1 Source
-- [notify_errors.ts](../../f/rh/notify_errors.ts) + [notify_errors.schedule.yaml](../../f/rh/notify_errors.schedule.yaml)
-
-### 4.2 Schedule
-- Cron : `0 * * * * *` (chaque heure, à 00:00, Europe/Paris)
-
-### 4.3 Logique actuelle (très Windmill-spécifique)
-1. Récupère depuis `wmill.getState()` l'ID du dernier job en erreur déjà notifié
-2. Appelle l'API Windmill `GET /api/w/zhost-1/jobs/completed/list?per_page=5&success=false&order_desc=true`
-3. Si nouveau job en échec trouvé → POST `https://ntfy.sh/<your-legacy-ntfy-topic>` avec un message court
-4. `wmill.setState(latest.id)` pour ne pas re-notifier
-
-### 4.4 Migration cible
-La logique change radicalement hors Windmill : on n'a plus l'API Windmill, on a Trigger.dev qui a son propre dashboard et webhooks d'erreur.
-
-**Options** :
-
-#### Option A — Webhook Trigger.dev (recommandé)
-Trigger.dev v4 envoie nativement des webhooks sur événements `task.failed`, `task.timeout`, etc. Configurer un webhook qui poste vers ntfy / Slack / email.
-- **Pas de cron nécessaire** : push-based, instantané
-- **Configuration** : dashboard Trigger.dev → Settings → Webhooks
-
-#### Option B — Cron query sur DB Trigger.dev
-Si on veut un agrégat horaire (digest plutôt que notif immédiate), créer une cron task Trigger.dev :
-```ts
-import { schedules } from "@trigger.dev/sdk/v3";
-
-export const notifyErrorsTask = schedules.task({
-  id: "notify-errors",
-  cron: "0 * * * *",   // chaque heure
-  run: async (payload) => {
-    // Query Trigger.dev API ou DB pour les runs en erreur depuis 1h
-    // POST ntfy / Slack
-  }
-});
-```
-
-#### Option C — Sentry / Datadog / Logtail
-Outils dédiés monitoring avec alerting déjà intégré. Surcoût d'infra mais beaucoup plus puissant que ntfy.
-
-**Recommandation** : Option A pour démarrer (gratuit, instantané), Option C si le projet grossit.
-
-### 4.5 Topic ntfy actuel
-- Topic : `<your-legacy-ntfy-topic>`
-- À renommer en `recruit-os-errors` ou équivalent (le `windmill-` n'a plus de sens)
-
----
-
-## 5. Récapitulatif des tâches Trigger.dev
-
-```
-apps/jobs/src/tasks/
-├── intake.ts          // task("intake")     — déclenché par webhook
-├── scoring.ts         // task("scoring")    — déclenché par intake ou API rescore
-├── communication.ts   // task("communication") — déclenché par API send
-└── notify-errors.ts   // schedules.task     — cron horaire (ou webhook)
-```
-
-**Configuration globale** :
-- `retry.maxAttempts: 3` pour `intake` et `communication` (idempotents)
-- `retry.maxAttempts: 2` pour `scoring` (Claude est déterministe à température 0, mais le coût d'un retry est non négligeable ; à régler selon budget)
-- `queue.concurrency: 5` (max 5 candidatures scorées en parallèle, évite de saturer l'API Anthropic)
-- Logs structurés : `logger.info({ candidature_id, step: "guardrails" }, "Flagged")`
-
----
-
-## 6. Diagramme global
-
-```
-   Webhook Formbricks (POST)
-            │
-            ▼
-   ┌────────────────┐
-   │ intake task    │  ① validate → ② identify → ③ extract_cv → ④ scrape_linkedin → ⑤ insert → ⑥ trigger_scoring
-   └────────┬───────┘
-            ▼
-   ┌────────────────┐
-   │ scoring task   │  ① load → ② guardrails → ③ update_flag → ④ Claude score → ⑤ save → ⑥ Claude email → ⑦ save draft
-   └────────┬───────┘
-            │ (BD : statut='score', communication 'brouillon' créée)
-            │
-            ▼
-   ┌────────────────┐
-   │ Frontend (UI)  │  RH valide / édite l'email
-   └────────┬───────┘
-            │ POST /api/communications/:id/send
-            ▼
-   ┌────────────────┐
-   │ communication  │  ① load → ② Calendly (si invitation) → ③ inject → ④ Gmail send → ⑤ update_status
-   │ task           │
-   └────────────────┘
-
-   notify-errors (cron horaire OU webhook Trigger.dev) → ntfy/Slack
-```
-
----
-
-## 7. Données qui transitent (récap des contrats inter-task)
-
-| Task → Task | Payload |
-|---|---|
-| Webhook → `intake` | Payload Formbricks complet |
-| `intake` → `scoring` | `{ candidature_id }` |
-| API `/rescore` → `scoring` | `{ candidature_id }` |
-| API `/send` → `communication` | `{ communication_id }` |
-
-Pas de gros payloads inter-task : tout transite par BD pour les CV, LinkedIn, scores. Bonne pratique → conserver.
-
----
-
-## 8. Pièges connus à anticiper
-
-1. **Payloads volumineux** : un CV PDF peut faire 5 MB. Ne **pas** passer le binaire entre les steps : extraire le texte au step 3 et stocker uniquement le texte. La logique actuelle est déjà OK.
-2. **Timeout Apify** : LinkedIn scraping peut prendre 30-60s. Le code actuel timeout à 120s. Ajuster selon les SLO.
-3. **Retry de scoring** : si Claude renvoie une réponse mal formée (rare mais arrive), parsing JSON échoue. Le code actuel throw → Trigger.dev retry. Bien — mais cap le retry à 2 pour éviter de bruler des tokens en boucle.
-4. **Statut candidature `'en_analyse'` vs `'score'`** : ces statuts ne sont **pas** dans la whitelist du backend `update_candidature_statut`. À aligner (cf. [01-data-model.md §2 BUG CONNU](01-data-model.md#table-candidatures)).
-5. **`[LIEN_CALENDLY]` placeholder** : si le flow communication oublie d'injecter (ex: type=relance mais calendly fail), l'email part avec le placeholder visible. Ajouter une vérif `contenu.includes('[LIEN_CALENDLY]')` avant `send` qui throw.
-6. **Idempotence** : si un retry déclenche 2× le step `insert_candidature`, on aura des doublons. Solution : ajouter un index unique sur `(poste_id, email, created_at::date)` ou un check préalable.
-
----
-
-**Suivant** : [04-prompts-ia.md](04-prompts-ia.md) — contenu littéral des 6 prompts système Claude.

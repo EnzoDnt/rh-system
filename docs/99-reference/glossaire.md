@@ -60,9 +60,3 @@ Vocabulaire métier et technique du système. Pour ne pas se perdre dans les con
 
 | Terme | Définition |
 |---|---|
-| **Plan A/B/C/D/E** | Phases de migration historique (depuis Windmill vers stack actuelle). Plus pertinent maintenant — historique. |
-| **Plan A — Foundation** | Setup pnpm workspaces + packages communs (db, types, config). |
-| **Plan B — Backend API** | Hono routes, Auth Supabase, services Claude. |
-| **Plan C — Frontend SPA** | React + Vite + TanStack. |
-| **Plan D — Jobs (worker)** | pg-boss + handlers intake/scoring/communication/heartbeat. |
-| **Plan E — Cutover** | Déploiement Coolify, DNS, Formbricks. |

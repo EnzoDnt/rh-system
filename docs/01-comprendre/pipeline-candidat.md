@@ -2,6 +2,49 @@
 
 Walkthrough détaillé de ce qui se passe quand un candidat soumet sa candidature, étape par étape, avec les fichiers de code impliqués et les points de friction connus.
 
+## Vue rapide en 1 schéma
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cand as 👤 Candidat
+    participant FB as 📝 Formbricks
+    participant API as ⚙️ API (Hono)
+    participant DB as 🗄️ Postgres
+    participant W as ⏱️ Worker (pg-boss)
+    participant Cl as 🧠 Claude
+    participant R as ✉️ Resend
+    actor RH as 🧑‍💼 Recruteur
+
+    Cand->>FB: 1. Remplit le formulaire
+    FB->>API: 2. POST /webhooks/formbricks?token=<secret>
+    API->>API: Vérifie signature
+    API->>DB: enqueue intake (pg-boss)
+    API-->>FB: 202 OK
+    Note over W: ─── Async pipeline ───
+    W->>W: 3. Extract PDF + scrape LinkedIn
+    W->>DB: INSERT candidature
+    W->>Cl: 4. Prompt guardrails (anti-injection)
+    Cl-->>W: flagged: false
+    W->>Cl: 5. Prompt scoring (CV + critères poste)
+    Cl-->>W: score=82, recommandation=retenir
+    W->>DB: INSERT score + rapport
+    W->>Cl: 6. Prompt génération email (selon score)
+    Cl-->>W: brouillon invitation
+    W->>DB: INSERT communication (statut=brouillon)
+    Note over RH,DB: ─── Validation humaine ───
+    RH->>DB: 7. Lit le rapport, valide le brouillon
+    RH->>API: POST /api/communications/:id/send
+    API->>DB: enqueue communication
+    W->>R: 8. Envoie l'email
+    R->>Cand: ✉️ Email d'invitation reçu
+    Cand->>Cand: 9. Clique sur lien Calendly, réserve
+```
+
+Les 8 étapes sont détaillées ci-dessous, avec les fichiers de code impliqués.
+
+---
+
 ## Étape 1 — Soumission Formbricks
 
 Le candidat remplit le formulaire sur l'URL Formbricks publique (`https://your-formbricks-domain/s/<survey-id>`). Les questions standard (nom, email, téléphone, LinkedIn, CV) sont définies en dur dans `apps/api/src/services/formbricks.ts` (`STANDARD_QUESTIONS`). Les questions IA-générées sont créées par `runFormulairePrompt()` quand le RH clique "Créer le formulaire" sur un nouveau poste.

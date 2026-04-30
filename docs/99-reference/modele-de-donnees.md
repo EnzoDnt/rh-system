@@ -224,7 +224,6 @@ Logique exacte : voir [update_prompt.ts](../../f/rh/app.raw_app/backend/update_p
 
 ## 3. Triggers `updated_at` (recommandé)
 
-Les backends Windmill mettent `updated_at = NOW()` manuellement à chaque UPDATE, ce qui est fragile. Mieux : un trigger global.
 
 ```sql
 CREATE OR REPLACE FUNCTION set_updated_at()
@@ -273,54 +272,6 @@ Si on utilise Supabase comme cible :
 - **Realtime** : utile potentiellement pour les changements de statut de candidatures en temps réel multi-utilisateur. Pas utilisé actuellement, à laisser de côté pour la v1.
 - **Storage** : si on veut héberger les CV PDF directement (au lieu de liens Drive externes), créer un bucket `cvs` avec policy authenticated upload/read.
 
-## 5. Migration des données depuis Windmill
-
-L'instance Windmill expose un Postgres interne au datatable `project_rh`. Le user n'a probablement pas d'accès direct mais Windmill propose un export.
-
-### Option A : via UI Windmill (recommandé pour ce volume)
-1. Dans l'UI Windmill, datatable `project_rh` → exporter chaque table en CSV
-2. Importer les CSV dans Supabase via l'UI ou via `\copy`
-3. Vérifier les types (UUIDs, JSONB) — possible besoin de cast manuels
-
-### Option B : via `pg_dump` (si accès direct au Postgres Windmill)
-```bash
-# Depuis l'instance Windmill (ou via tunnel)
-pg_dump -h <host> -U <user> -d <db> \
-  --schema=project_rh \
-  --data-only \
-  --table=postes --table=candidatures --table=scores \
-  --table=communications --table=prompts --table=prompts_history \
-  --column-inserts \
-  > project_rh_export.sql
-
-# Adapter le schéma dans le fichier (rechercher/remplacer `project_rh.` par ``)
-sed -i '' 's/project_rh\.//g' project_rh_export.sql
-
-# Importer dans Supabase
-psql -h db.xxx.supabase.co -U postgres -d postgres < project_rh_export.sql
-```
-
-### Option C : script Node de copie ligne par ligne
-Si volume faible et accès Windmill via API, écrire un script Node qui :
-1. SELECT * sur chaque table via Windmill API (ou via un script Windmill `export_table.bun.ts`)
-2. INSERT en lot vers Supabase via Drizzle
-
-### Vérifications post-migration
-```sql
-SELECT 'postes' AS table, COUNT(*) FROM postes
-UNION ALL SELECT 'candidatures', COUNT(*) FROM candidatures
-UNION ALL SELECT 'scores', COUNT(*) FROM scores
-UNION ALL SELECT 'communications', COUNT(*) FROM communications
-UNION ALL SELECT 'prompts', COUNT(*) FROM prompts
-UNION ALL SELECT 'prompts_history', COUNT(*) FROM prompts_history;
-
--- Validation FK
-SELECT COUNT(*) FROM candidatures c LEFT JOIN postes p ON c.poste_id = p.id WHERE p.id IS NULL;
-SELECT COUNT(*) FROM scores s LEFT JOIN candidatures c ON s.candidature_id = c.id WHERE c.id IS NULL;
-SELECT COUNT(*) FROM communications co LEFT JOIN candidatures c ON co.candidature_id = c.id WHERE c.id IS NULL;
--- Tous doivent retourner 0
-```
-
 ## 6. Seed des prompts IA (post-migration)
 
 Les 6 prompts système doivent être insérés dans la table `prompts`. Le contenu exact des system prompts est dans [04-prompts-ia.md](04-prompts-ia.md).
@@ -330,15 +281,6 @@ Les 6 prompts système doivent être insérés dans la table `prompts`. Le conte
 **À faire après migration de la BD** :
 - Si tu fais un `pg_dump` complet, les 6 prompts seront déjà présents → vérifier avec `SELECT type FROM prompts;` (doit retourner 6 lignes)
 - Sinon : exécuter le script de seed équivalent (cf. [04-prompts-ia.md §6](04-prompts-ia.md))
-
-## 7. Migration historique `005_add_fiche_poste.sql`
-
-Le fichier [sql_to_apply/005_add_fiche_poste.sql](../../f/rh/app.raw_app/sql_to_apply/005_add_fiche_poste.sql) contient :
-```sql
-ALTER TABLE postes ADD COLUMN IF NOT EXISTS fiche_html TEXT;
-ALTER TABLE postes ADD COLUMN IF NOT EXISTS fiche_brief TEXT;
-```
-Ces deux colonnes sont déjà incluses dans le DDL ci-dessus (§2). Pas besoin de rejouer si on part d'une BD vierge.
 
 ## 8. Volumétrie attendue (sizing)
 
@@ -353,18 +295,3 @@ Ces deux colonnes sont déjà incluses dans le DDL ci-dessus (§2). Pas besoin d
 
 **Conclusion** : très petite BD. Le plan free de Supabase (500 MB) est largement suffisant pendant des années. Pas besoin d'index avancés ni de partitioning. La principale optimisation est sur les requêtes JOIN avec FILTER (cf. analytics).
 
-## 9. Checklist DBA pour la migration
-
-- [ ] Exécuter le DDL §2 sur la BD cible
-- [ ] Activer l'extension `pgcrypto`
-- [ ] Créer les triggers `updated_at` §3
-- [ ] (Si Supabase) Activer RLS + policies §4
-- [ ] Migrer les données existantes §5
-- [ ] Seeder les 6 prompts §6 + [04-prompts-ia.md](04-prompts-ia.md)
-- [ ] Lancer les vérifications de FK §5
-- [ ] Tester un INSERT/UPDATE de chaque table avec un client SQL
-- [ ] Documenter les credentials dans Doppler/Infisical
-
----
-
-**Suivant** : [02-api-contracts.md](02-api-contracts.md) — contrats des ~30 endpoints REST avec mapping vers les backends Windmill source.

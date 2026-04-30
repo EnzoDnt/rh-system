@@ -1,10 +1,7 @@
-# 02 — Contrats d'API REST
+# Référence API REST
 
-> **Source** : 25 backends Windmill ([f/rh/app.raw_app/backend/](../../f/rh/app.raw_app/backend/)) + appels recensés dans [App.tsx](../../f/rh/app.raw_app/App.tsx).
->
-> **Convention** : tous les endpoints internes sont sous `/api/*`, en JSON, avec auth Supabase JWT. Les endpoints publics sont sous `/webhooks/*` et `/fiches/*`, sans auth.
->
-> Schémas exprimés en pseudo-Zod / pseudo-Pydantic. Adapter selon la stack cible.
+> Liste exhaustive des endpoints exposés par `apps/api`. Tous les endpoints sous `/api/*` requièrent un JWT Supabase (`Authorization: Bearer <token>`). Les endpoints sous `/webhooks/*` et `/fiches/*` sont publics.
+
 
 ---
 
@@ -38,10 +35,6 @@ Toujours `ISO 8601` (`2026-04-26T14:30:00Z`).
 Content-Type: application/json
 Authorization: Bearer <token>   // sauf endpoints publics
 ```
-
-### Mapping global Windmill → REST
-
-L'app frontend appelle `backend.X({ ... })` via le SDK Windmill, ce qui équivaut à un POST JSON vers le script Windmill. Pour la migration, on transforme chaque appel en route REST, en respectant les sémantiques HTTP (GET pour lecture, POST pour création, PATCH pour modif partielle, etc.).
 
 ---
 
@@ -176,7 +169,7 @@ Met à jour uniquement les notes RH.
 Lance manuellement un re-scoring asynchrone.
 - **Source** : [rescore_candidature.ts](../../f/rh/app.raw_app/backend/rescore_candidature.ts)
 - **Body** : aucun
-- **Comportement** : enqueue le task `scoring` (Trigger.dev) avec `{ candidature_id }`, retourne le `job_id`
+- **Comportement** : enqueue le task `scoring` (pg-boss) avec `{ candidature_id }`, retourne le `job_id`
 - **Réponse 202 Accepted** : `{ candidature_id, job_id, message: "Re-scoring lancé" }`
 
 ---
@@ -245,7 +238,7 @@ Valide + déclenche l'envoi async.
 - **Body** : aucun
 - **Comportement** :
   1. UPDATE statut → `'valide'` (atomique, refuse si pas brouillon)
-  2. Enqueue le task `communication` (Trigger.dev) avec `{ communication_id }`
+  2. Enqueue le task `communication` (pg-boss) avec `{ communication_id }`
 - **Réponse 202** : `{ communication_id, statut: 'valide', job_id }`
 - **404** si introuvable ou pas en `'brouillon'`.
 
@@ -324,7 +317,7 @@ Restaure une version d'historique (crée une nouvelle version identique à l'anc
 
 ## 7. GÉNÉRATION IA (synchrones, appellent Claude)
 
-> Ces endpoints sont **synchrones** (l'utilisateur attend la réponse, latence 5-30s acceptable). Ils ne passent **pas** par Trigger.dev. Ils chargent le prompt depuis la table `prompts` (sauf `generate_fiche_poste` qui utilisait au départ un prompt hardcodé — désormais aussi en BD via `type='generation_fiche_poste'`).
+> Ces endpoints sont **synchrones** (l'utilisateur attend la réponse, latence 5-30s acceptable). Ils ne passent **pas** par pg-boss. Ils chargent le prompt depuis la table `prompts` (sauf `generate_fiche_poste` qui utilisait au départ un prompt hardcodé — désormais aussi en BD via `type='generation_fiche_poste'`).
 
 ### `POST /api/ai/generate-criteres`
 Génère 4-8 critères de scoring pour un poste.
@@ -428,7 +421,7 @@ Crée le webhook Formbricks (idempotent — vérifie l'existant avant).
   2. Si webhook existe pour `(url, surveyIds)` → return `'already_exists'`
   3. Sinon `POST /api/v1/webhooks` avec `{ url, triggers: ['responseFinished'], surveyIds: [survey_id], environmentId }`
 - **Réponse 200** : `{ status: 'created'|'already_exists', webhook_id?, survey_id }`
-- **Note** : `windmillWebhookUrl` à remplacer par `https://api.your-domain.example/webhooks/formbricks` (cf. §10)
+- **Note** : Le webhook Formbricks doit pointer vers `https://api.your-domain.example/webhooks/formbricks` (cf. §10)
 
 ---
 
@@ -451,7 +444,7 @@ Réceptionne les soumissions Formbricks et déclenche le flow `intake`.
   ```
 - **Comportement** :
   1. Réponse 202 immédiate (pas de validation synchrone)
-  2. Enqueue le task `intake` Trigger.dev avec le payload complet
+  2. Enqueue le task `intake` pg-boss avec le payload complet
 - **Sécurité recommandée** :
   - Ajouter une signature HMAC côté Formbricks (header `X-Formbricks-Signature`) et vérifier côté API.
   - Sinon, restreindre par IP allowlist ou par token secret en query string.
@@ -472,56 +465,6 @@ Sert la fiche de poste publique en HTML.
 
 ### `GET /test-fiche` (optionnel — POC à retirer)
 Page HTML statique de démonstration ([test_serve_html.bun.ts](../../f/rh/test_serve_html.bun.ts)). À supprimer en migration.
-
----
-
-## 10. URLs publiques actuelles vs cibles
-
-| Endpoint | URL Windmill actuelle | URL cible suggérée |
-|---|---|---|
-| Webhook Formbricks | `https://your-domain.example/api/r/rh/formbricks-webhook` | `https://api.your-domain.example/webhooks/formbricks` |
-| Fiche publique | `https://your-domain.example/api/r/rh/fiche?id=<uuid>` | `https://your-domain.example/fiches/<uuid>` |
-| App RH | `https://your-domain.example/apps/...` | `https://rh.your-domain.example` |
-
-> **Important** : avant la bascule en production, reconfigurer côté Formbricks tous les webhooks pour pointer vers la nouvelle URL. Le script [setup_formbricks_webhook.ts](../../f/rh/app.raw_app/backend/setup_formbricks_webhook.ts) doit être adapté en conséquence.
-
----
-
-## 11. Liste exhaustive des appels frontend → API (mapping)
-
-Issu de [App.tsx](../../f/rh/app.raw_app/App.tsx) :
-
-| Appel actuel | Méthode | Endpoint cible |
-|---|---|---|
-| `backend.list_postes({})` | GET | `/api/postes` |
-| `backend.get_poste({ poste_id })` | GET | `/api/postes/:id` |
-| `backend.create_poste(...)` | POST | `/api/postes` |
-| `backend.update_poste({ poste_id, ... })` | PATCH | `/api/postes/:id` |
-| `backend.list_candidatures({ poste_id?, statut? })` | GET | `/api/candidatures?...` |
-| `backend.get_candidature({ candidature_id })` | GET | `/api/candidatures/:id` |
-| `backend.update_candidature(...)` | PATCH | `/api/candidatures/:id` |
-| `backend.update_candidature_statut(...)` | PATCH | `/api/candidatures/:id/statut` |
-| `backend.update_notes_rh(...)` | PATCH | `/api/candidatures/:id/notes` |
-| `backend.update_score(...)` | PATCH | `/api/candidatures/:id/score` |
-| `backend.list_communications({ statut? })` | GET | `/api/communications?...` |
-| `backend.create_communication(...)` | POST | `/api/communications` |
-| `backend.update_communication(...)` | PATCH | `/api/communications/:id` |
-| `backend.validate_and_send({ communication_id })` | POST | `/api/communications/:id/send` |
-| `backend.get_analytics({})` | GET | `/api/analytics` |
-| `backend.list_prompts({})` | GET | `/api/prompts` |
-| `backend.get_prompt({ prompt_id })` | GET | `/api/prompts/:id` |
-| `backend.update_prompt(...)` | PATCH | `/api/prompts/:id` |
-| `backend.restore_prompt(...)` | POST | `/api/prompts/:id/restore` |
-| `backend.generate_criteres_ia(...)` | POST | `/api/ai/generate-criteres` |
-| `backend.generate_email_ia(...)` | POST | `/api/ai/generate-email` |
-| `backend.regenerate_email(...)` | POST | `/api/ai/regenerate-email` |
-| `backend.generate_fiche_poste(...)` | POST | `/api/ai/generate-fiche-poste` |
-| `backend.generate_survey(...)` | POST | `/api/ai/generate-survey` |
-| `backend.list_calendly_events({})` | GET | `/api/calendly/events` |
-| `backend.link_survey(...)` | POST | `/api/postes/:id/link-survey` |
-| `backend.setup_formbricks_webhook(...)` | POST | `/api/postes/:id/setup-webhook` |
-
-**Total** : 27 endpoints internes + 2 publics + 1 dépréciable (`/test-fiche`).
 
 ---
 
@@ -557,11 +500,10 @@ apps/api/src/
 │   ├── formbricks.ts        // Création survey + webhook
 │   ├── gmail.ts
 │   └── calendly.ts
-└── jobs/                    // Triggers de tasks Trigger.dev
+└── jobs/                    // Triggers de tasks pg-boss
     └── trigger-client.ts
 ```
 
-Pour la stack B (FastAPI), structure équivalente avec `app/api/`, `app/services/`, `app/db/`.
 
 ---
 

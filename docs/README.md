@@ -7,6 +7,8 @@ Choisis ton point d'entrée selon ton profil :
 | Tu es… | Commence par |
 |---|---|
 | Curieux de comprendre ce que fait le système | [01-comprendre/vue-d-ensemble.md](01-comprendre/vue-d-ensemble.md) |
+| Tu veux voir les fonctionnalités concrètes (avec schémas) | [01-comprendre/fonctionnalites.md](01-comprendre/fonctionnalites.md) |
+| Tu veux comprendre l'architecture technique | [01-comprendre/architecture.md](01-comprendre/architecture.md) |
 | Développeur qui veut le lancer en local en 30 min | [02-demarrer/parcours-developpeur.md](02-demarrer/parcours-developpeur.md) |
 | Non-technique, tu veux le déployer en cliquant | [02-demarrer/parcours-clic-a-clic.md](02-demarrer/parcours-clic-a-clic.md) |
 | Tu veux que ton agent IA fasse l'install pour toi | [02-demarrer/parcours-avec-agent-ia.md](02-demarrer/parcours-avec-agent-ia.md) |
