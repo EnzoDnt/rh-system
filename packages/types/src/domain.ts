@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// --- QUESTIONS (native form, replaces Formbricks) ---
+// --- QUESTIONS (native integrated form) ---
 export const QuestionTypeSchema = z.enum([
   "text", "email", "tel", "url", "long_text", "file_pdf", "select",
 ]);
@@ -83,7 +83,6 @@ export const PosteSchema = z.object({
   titre: z.string().min(1),
   description: z.string().nullable().optional(),
   criteres_scoring: CriteresScoringSchema,
-  formbricks_survey_id: z.string().nullable().optional(),
   lien_reservation_url: z.string().nullable().optional(),
   fiche_html: z.string().nullable().optional(),
   fiche_brief: z.string().nullable().optional(),

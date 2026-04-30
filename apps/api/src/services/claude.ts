@@ -163,7 +163,7 @@ export async function runCriteresPrompt(input: { titre: string; description: str
 // --- FICHE DE POSTE (raw HTML) ---
 export async function runFichePostePrompt(input: {
   titre: string; description: string; brief?: string;
-  formbricks_survey_id?: string; feedback?: string; current_html?: string;
+  feedback?: string; current_html?: string;
 }): Promise<string> {
   const { system_prompt, model } = await loadPrompt("generation_fiche_poste");
   const response = await client().messages.create({

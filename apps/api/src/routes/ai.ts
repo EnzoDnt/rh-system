@@ -37,7 +37,6 @@ const GenFicheBody = z.object({
   titre: z.string().min(1),
   description: z.string().min(1),
   brief: z.string().optional(),
-  formbricks_survey_id: z.string().optional(),
   feedback: z.string().optional(),
   current_html: z.string().optional(),
 });

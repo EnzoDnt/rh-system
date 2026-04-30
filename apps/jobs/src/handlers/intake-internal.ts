@@ -1,14 +1,12 @@
 // Internal intake handler: processes candidatures submitted via the native form API.
 // Called after POST /api/public/applications/:slug inserts a candidature and enqueues scoring.
 //
-// Unlike the Formbricks intake handler, this handler:
-// 1. Receives a simple { candidature_id } payload (no survey matching needed)
+// This handler:
+// 1. Receives a simple { candidature_id } payload (no external survey matching needed)
 // 2. Extracts PDF text from cv_url (if present)
-// 3. Updates cv_texte_extrait on the candidature
+// 3. Updates cv_texte_extrait on the candidature so the scoring job has full content
 //
 // Note: scoring is already enqueued by the API endpoint when the candidature is created.
-// This handler only enriches the candidature with CV text extraction so that
-// the scoring job has the full content available.
 
 import type PgBoss from "pg-boss";
 import { eq } from "drizzle-orm";

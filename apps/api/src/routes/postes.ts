@@ -5,7 +5,6 @@ import { eq, sql } from "drizzle-orm";
 import { getDb, postes, candidatures, scores } from "@rh/db";
 import { CriteresScoringSchema, PosteStatutSchema, STANDARD_QUESTIONS } from "@rh/types";
 import { Errors } from "../lib/http.js";
-import { setupWebhook, createSurvey } from "../services/formbricks.js";
 import { runFormulairePrompt } from "../services/claude.js";
 
 const db = getDb();
@@ -24,7 +23,6 @@ const PatchBody = z.object({
   criteres_scoring: CriteresScoringSchema.optional(),
   statut: PosteStatutSchema.optional(),
   lien_reservation_url: z.string().nullable().optional(),
-  formbricks_survey_id: z.string().nullable().optional(),
   fiche_html: z.string().optional(),
   fiche_brief: z.string().optional(),
 });
@@ -35,7 +33,7 @@ export const postesRouter = new Hono()
   .get("/", async (c) => {
     const rows = await db.execute<any>(sql`
       SELECT p.id, p.titre, p.description, p.criteres_scoring,
-             p.formbricks_survey_id, p.statut, p.lien_reservation_url,
+             p.slug, p.statut, p.lien_reservation_url,
              p.created_at, p.updated_at,
              COUNT(c.id)::int AS nb_candidatures
         FROM postes p
@@ -87,38 +85,9 @@ export const postesRouter = new Hono()
     return c.json(updated);
   })
 
-  .post("/:id/link-survey", zValidator("json", z.object({ formbricks_survey_id: z.string().min(1) })), async (c) => {
-    const id = c.req.param("id");
-    const { formbricks_survey_id } = c.req.valid("json");
-    const [updated] = await db.update(postes).set({ formbricks_survey_id }).where(eq(postes.id, id))
-      .returning({ id: postes.id, titre: postes.titre, formbricks_survey_id: postes.formbricks_survey_id });
-    if (!updated) throw Errors.notFound("Poste");
-    return c.json(updated);
-  })
-
-  .post("/:id/setup-survey", zValidator("json", z.object({ generatedQuestions: z.array(z.record(z.unknown())) })), async (c) => {
-    const id = c.req.param("id");
-    const { generatedQuestions } = c.req.valid("json");
-    const [poste] = await db.select().from(postes).where(eq(postes.id, id));
-    if (!poste) throw Errors.notFound("Poste");
-    const survey = await createSurvey({ posteTitre: poste.titre, generatedQuestions });
-    await db.update(postes).set({ formbricks_survey_id: survey.survey_id }).where(eq(postes.id, id));
-    const publicApiUrl = process.env.PUBLIC_API_URL ?? "http://localhost:3000";
-    const targetUrlObj = new URL("/webhooks/formbricks", publicApiUrl);
-    // Bake the shared secret into the URL so Formbricks (which doesn't support custom headers
-    // or HMAC signing) can authenticate. Server-side check matches in apps/api/src/routes/webhooks/formbricks.ts.
-    if (process.env.FORMBRICKS_WEBHOOK_SECRET) {
-      targetUrlObj.searchParams.set("token", process.env.FORMBRICKS_WEBHOOK_SECRET);
-    }
-    const targetUrl = targetUrlObj.toString();
-    const webhook = await setupWebhook({ survey_id: survey.survey_id, targetUrl });
-    return c.json({ ...survey, webhook });
-  })
-
   // POST /api/postes/:id/generate-questions
   // Génère les questions via IA et les persiste dans postes.questions_json.
   // Les standards (nom, email, tel, linkedin, cv) sont ajoutés automatiquement en tête.
-  // Ne touche PAS à formbricks_survey_id (gardé pour rétro-compat Phase 5A).
   .post("/:id/generate-questions", async (c) => {
     const id = c.req.param("id");
     const [poste] = await db.select().from(postes).where(eq(postes.id, id));

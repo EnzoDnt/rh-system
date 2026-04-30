@@ -19,7 +19,6 @@ export function FichePosteEditor({ poste }: { poste: any }) {
       titre: poste.titre,
       description: poste.description,
       brief,
-      formbricks_survey_id: poste.formbricks_survey_id ?? undefined,
       ...(feedback ? { feedback, current_html: poste.fiche_html } : {}),
     });
     await update.mutateAsync({ fiche_html: html, fiche_brief: brief });

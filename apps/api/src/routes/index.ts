@@ -8,7 +8,6 @@ import { analyticsRouter } from "./analytics.js";
 import { promptsRouter } from "./prompts.js";
 import { aiRouter } from "./ai.js";
 import { notificationsRouter } from "./notifications.js";
-import { formbricksWebhookRouter } from "./webhooks/formbricks.js";
 import { fichesRouter } from "./public/fiches.js";
 import { configRouter } from "./config.js";
 import { publicPostesRouter } from "./public/postes.js";
@@ -35,6 +34,5 @@ export function mountRoutes(app: Hono, opts: MountOptions = {}) {
   app.route("/api/prompts", promptsRouter);
   app.route("/api/ai", aiRouter);
   app.route("/api/notifications", notificationsRouter);
-  app.route("/webhooks/formbricks", formbricksWebhookRouter);
   app.route("/fiches", fichesRouter);
 }

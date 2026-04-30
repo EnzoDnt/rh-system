@@ -90,7 +90,6 @@ export function fichePosteUserPrompt(input: {
   titre: string;
   description: string;
   brief?: string;
-  formbricks_survey_id?: string;
   feedback?: string;
   current_html?: string;
 }): string {
@@ -107,14 +106,13 @@ ${input.feedback}
 Applique ces modifications et retourne le HTML complet mis à jour. Conserve le même style et structure, ne modifie que ce qui est demandé.`;
   }
   const brief = input.brief ? `\n\n## Brief supplémentaire\n${input.brief}` : "";
-  const cta = input.formbricks_survey_id
-    ? `\n\nIMPORTANT: Inclus un bouton "Postuler maintenant" qui pointe vers https://formbricks.your-domain.example/s/${input.formbricks_survey_id}`
-    : `\n\nIMPORTANT: Ne pas inclure de bouton Postuler (pas de formulaire lié).`;
   return `Génère la fiche de poste HTML pour :
 
 ## Poste
 Titre : ${input.titre}
-Description : ${input.description}${brief}${cta}`;
+Description : ${input.description}${brief}
+
+IMPORTANT: Ne pas inclure de bouton Postuler (le lien de candidature est fourni séparément par le système).`;
 }
 
 export function formulaireUserPrompt(input: {

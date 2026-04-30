@@ -7,7 +7,6 @@ export const postes = pgTable("postes", {
   titre: text("titre").notNull(),
   description: text("description"),
   criteres_scoring: jsonb("criteres_scoring").notNull().default(sql`'{}'::jsonb`),
-  formbricks_survey_id: text("formbricks_survey_id"),
   slug: text("slug").unique(),
   questions_json: jsonb("questions_json"),
   lien_reservation_url: text("lien_reservation_url"),
@@ -18,7 +17,6 @@ export const postes = pgTable("postes", {
   updated_at: timestamp("updated_at", { mode: "string" }).notNull().defaultNow(),
 }, (t) => ({
   idxStatut: index("idx_postes_statut").on(t.statut),
-  idxFormbricks: index("idx_postes_formbricks").on(t.formbricks_survey_id),
   idxCreated: index("idx_postes_created_at").on(t.created_at.desc()),
 }));
 

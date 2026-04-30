@@ -14,10 +14,6 @@ const EnvSchema = z.object({
   RESEND_API_KEY: z.preprocess((v) => v === "" ? undefined : v, z.string().optional()),
   CALENDLY_TOKEN: z.preprocess((v) => v === "" ? undefined : v, z.string().optional()),
   APIFY_API_KEY: z.preprocess((v) => v === "" ? undefined : v, z.string().optional()),
-  FORMBRICKS_API_KEY: z.preprocess((v) => v === "" ? undefined : v, z.string().optional()),
-  FORMBRICKS_BASE_URL: z.preprocess((v) => v === "" ? undefined : v, z.string().url().optional()),
-  FORMBRICKS_ENVIRONMENT_ID: z.preprocess((v) => v === "" ? undefined : v, z.string().optional()),
-  FORMBRICKS_WEBHOOK_SECRET: z.preprocess((v) => v === "" ? undefined : v, z.string().min(16).optional()),
   NTFY_TOPIC_URL: z.preprocess((v) => v === "" ? undefined : v, z.string().url().optional()),
 
   // Public URLs
