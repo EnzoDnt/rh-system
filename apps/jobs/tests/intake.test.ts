@@ -17,6 +17,8 @@ vi.mock("../src/services/linkedin.js", () => ({
 const db = getDb();
 beforeEach(async () => {
   await db.delete(postes).where(sql`titre LIKE 'TEST_INTAKE_%'`);
+  // Enable Apify mock for tests (intake.ts guards on APIFY_API_KEY presence)
+  process.env.APIFY_API_KEY = "test-key";
 });
 
 describe("processIntakePayload", () => {
