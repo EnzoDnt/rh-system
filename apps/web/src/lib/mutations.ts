@@ -162,18 +162,15 @@ export function useGenerateFichePoste() {
   });
 }
 
-export function useSetupSurvey(posteId: string) {
+export function useGenerateQuestions(posteId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: any) => api<any>(`/api/postes/${posteId}/setup-survey`, { method: "POST", json: input }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.poste(posteId) }); toast.success("Formulaire Formbricks créé et webhook configuré"); },
-    onError: (e: any) => toast.error(e.message),
-  });
-}
-
-export function useGenerateSurveyQuestions() {
-  return useMutation({
-    mutationFn: (input: any) => api<{ questions: any[] }>("/api/ai/generate-survey", { method: "POST", json: input }),
+    mutationFn: () =>
+      api<{ questions: any[]; poste: any }>(`/api/postes/${posteId}/generate-questions`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.poste(posteId) });
+      toast.success("Questions régénérées");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 }
