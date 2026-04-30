@@ -3,7 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { CriteresScoringSchema, RecommandationSchema, CommunicationTypeSchema } from "@rh/types";
 import {
-  runCriteresPrompt, runEmailPrompt, runFichePostePrompt, runFormulairePrompt,
+  runCriteresPrompt, runEmailPrompt, runFichePostePrompt,
 } from "../services/claude.js";
 import { determineEmailType } from "../services/claude-prompts.js";
 
@@ -40,12 +40,6 @@ const GenFicheBody = z.object({
   formbricks_survey_id: z.string().optional(),
   feedback: z.string().optional(),
   current_html: z.string().optional(),
-});
-
-const GenSurveyBody = z.object({
-  poste_titre: z.string().min(1),
-  poste_description: z.string().min(1),
-  criteres: CriteresScoringSchema,
 });
 
 export const aiRouter = new Hono()
@@ -89,9 +83,4 @@ export const aiRouter = new Hono()
   .post("/generate-fiche-poste", zValidator("json", GenFicheBody), async (c) => {
     const html = await runFichePostePrompt(c.req.valid("json"));
     return c.text(html, 200, { "content-type": "text/html; charset=utf-8" });
-  })
-
-  .post("/generate-survey", zValidator("json", GenSurveyBody), async (c) => {
-    const questions = await runFormulairePrompt(c.req.valid("json"));
-    return c.json({ questions });
   });
