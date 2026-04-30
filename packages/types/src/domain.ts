@@ -1,5 +1,32 @@
 import { z } from "zod";
 
+// --- QUESTIONS (native form, replaces Formbricks) ---
+export const QuestionTypeSchema = z.enum([
+  "text", "email", "tel", "url", "long_text", "file_pdf", "select",
+]);
+export type QuestionType = z.infer<typeof QuestionTypeSchema>;
+
+export const QuestionSchema = z.object({
+  id: z.string().min(1).regex(/^[a-z_][a-z0-9_]*$/, "id must be snake_case"),
+  type: QuestionTypeSchema,
+  label: z.string().min(1),
+  required: z.boolean().default(false),
+  options: z.array(z.string()).optional(),
+  placeholder: z.string().optional(),
+  help_text: z.string().optional(),
+});
+export type Question = z.infer<typeof QuestionSchema>;
+
+export const QuestionsArraySchema = z.array(QuestionSchema);
+
+export const STANDARD_QUESTIONS: Question[] = [
+  { id: "nom", type: "text", label: "Nom complet", required: true },
+  { id: "email", type: "email", label: "Email", required: true },
+  { id: "telephone", type: "tel", label: "Téléphone", required: false },
+  { id: "linkedin_url", type: "url", label: "Lien LinkedIn", required: false, placeholder: "https://linkedin.com/in/..." },
+  { id: "cv_pdf", type: "file_pdf", label: "Ton CV (PDF)", required: true },
+];
+
 // Statut enums (cf. docs/migration/01-data-model.md §2)
 export const PosteStatutSchema = z.enum(["ouvert", "en_cours", "ferme"]);
 export type PosteStatut = z.infer<typeof PosteStatutSchema>;
