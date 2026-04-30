@@ -30,6 +30,32 @@ The Supabase DB is already populated by the bootstrap (6 prompts + 4 postes × 5
 - `pnpm db:seed` — upsert the 6 IA prompts
 - `pnpm db:verify` — count rows + check FK orphans
 
+## Première connexion
+
+La page `/login` offre deux modes de connexion :
+
+### Lien magique (par défaut)
+
+Entre ton email → reçois un lien par email → clique pour être connecté automatiquement.
+Aucun mot de passe requis.
+
+### Mot de passe
+
+Entre ton email + mot de passe → connexion immédiate.
+
+Pour créer un compte avec mot de passe :
+
+1. Va dans le **Supabase Dashboard** → **Authentication** → **Users**
+2. Clique **Add user** → renseigne l'email et un mot de passe
+3. L'utilisateur peut alors se connecter via l'onglet « Mot de passe »
+
+### Mot de passe oublié
+
+Dans l'onglet « Mot de passe », le lien **Mot de passe oublié ?** envoie un email de réinitialisation.
+L'utilisateur arrive sur `/reset-password` où il choisit son nouveau mot de passe (minimum 8 caractères).
+
+---
+
 ## Where the data lives
 
 - DB rows: queryable via the Supabase dashboard SQL editor or via `psql "$DATABASE_URL"` once `.env` is filled.

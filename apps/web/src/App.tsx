@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./routes/_layout.js";
 import LoginPage from "./routes/login.js";
+import ResetPasswordPage from "./routes/reset-password.js";
 
 // Lazy-load route modules (filled by Tasks 5–9)
 import { lazy, Suspense } from "react";
@@ -25,7 +26,8 @@ export default function App() {
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        {/* Public route — no auth, no layout wrapper */}
+        {/* Public routes — no auth, no layout wrapper */}
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/postuler/:slug" element={<PostulerPage />} />
         <Route element={<Layout />}>
           <Route index element={<Navigate to="/postes" replace />} />
