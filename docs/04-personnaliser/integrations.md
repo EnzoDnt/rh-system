@@ -42,6 +42,33 @@ Avantage : zéro dépendance externe, contrôle total UX. Inconvénient : tu cod
 
 ## Email
 
+### Flux par défaut — mailto (aucune configuration requise)
+
+Par défaut, **Resend n'est pas nécessaire**. Le recruteur envoie les emails depuis son propre client mail (Gmail, Outlook, etc.) :
+
+1. Le worker génère le brouillon (sujet + contenu) et le stocke en BD avec `statut: brouillon`
+2. Dans le dashboard, 4 boutons apparaissent sur chaque brouillon :
+   - **Copier** — copie sujet + contenu dans le presse-papier
+   - **Ouvrir dans mon mail** — ouvre le client mail par défaut via `mailto:` avec sujet + corps pré-remplis
+   - **Marquer comme envoyé** — passe le statut en `marque_envoye` sans passer par Resend
+   - **Envoyer via Resend** — visible uniquement si `RESEND_API_KEY` est configuré côté serveur
+
+Ce flux convient à la plupart des petites équipes RH.
+
+### Activer Resend — envoi automatique
+
+Pour envoyer les emails directement depuis le dashboard sans ouvrir ton client mail :
+
+1. Crée un compte sur [resend.com](https://resend.com)
+2. Vérifie ton domaine (DNS : enregistrements SPF + DKIM dans ton registrar)
+3. Génère une clé API dans Resend
+4. Configure dans ton `.env` (ou dans Coolify/Railway) :
+   ```env
+   RESEND_API_KEY=re_xxxxxxxx
+   RESEND_FROM=L'équipe RH <recrutement@ton-domaine.example>
+   ```
+5. Redémarre l'API. Le bouton **"Envoyer via Resend"** apparaît automatiquement dans le dashboard.
+
 ### Resend → Postmark / Mailgun / SES
 
 Ces services exposent une API REST très similaire. Le code à modifier : `apps/jobs/src/services/email.ts`.
@@ -58,18 +85,6 @@ const r = await fetch("https://api.postmarkapp.com/email", {
 Renomme aussi `RESEND_API_KEY` → `POSTMARK_TOKEN` dans `.env.example` et `packages/config/src/env.ts`.
 
 Pour SES : utilise `@aws-sdk/client-ses`, plus verbeux mais beaucoup moins cher en haut volume.
-
-### Désactiver l'envoi (mode dry-run)
-
-Dans `email.ts` :
-```typescript
-if (!process.env.RESEND_API_KEY) {
-  console.log(`[email dry-run] would send to ${to}: ${subject}`);
-  return { id: "dry-run" };
-}
-```
-
-Utile en dev / staging.
 
 ## Auth
 

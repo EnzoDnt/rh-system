@@ -101,10 +101,17 @@ Le coût Claude est tracé dans `ai_calls` après chaque appel. Voir [05-operer/
 Dans `https://rh.your-domain.example/candidatures/:id` :
 - RH revoit le score, le rapport IA, les réponses
 - Édite optionnellement le brouillon d'email (sujet, contenu)
-- Clique **"Valider et envoyer"** → `POST /api/communications/:id/send`
-- Côté API : statut passe à `valide`, enqueue job `communication`/send
+- 4 boutons disponibles selon la configuration :
 
-Le worker (`processCommunication` dans `communication.ts` côté send) appelle `sendEmail()` (`apps/jobs/src/services/email.ts`, basé sur Resend). En cas d'échec Resend (TLD invalide, quota, etc.), statut → `erreur` + notif ntfy.
+**Flux par défaut (sans Resend)** :
+- **Copier** → copie sujet + contenu dans le presse-papier
+- **Ouvrir dans mon mail** → ouvre Gmail/Outlook via `mailto:` avec sujet + corps pré-remplis
+- **Marquer comme envoyé** → `POST /api/communications/:id/mark-sent` → statut `marque_envoye`
+
+**Flux avec Resend (optionnel, si `RESEND_API_KEY` configuré)** :
+- **Envoyer via Resend** → `POST /api/communications/:id/send` → statut `valide` → enqueue job → worker appelle `sendEmail()` → statut `envoye`
+
+En cas d'échec Resend (TLD invalide, quota, etc.), statut → `erreur` + notif ntfy.
 
 ## Étape 7 — Candidat reçoit + clique Calendly
 
