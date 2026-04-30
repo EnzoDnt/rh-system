@@ -10,6 +10,7 @@ export const qk = {
   analytics: () => ["analytics"] as const,
   prompts: () => ["prompts"] as const,
   prompt: (id: string) => ["prompts", id] as const,
+  notifications: (unread?: boolean) => ["notifications", { unread }] as const,
 };
 
 export const usePostes = () => useQuery({ queryKey: qk.postes(), queryFn: () => api<any[]>("/api/postes") });
@@ -34,3 +35,12 @@ export const useAnalytics = () => useQuery({ queryKey: qk.analytics(), queryFn: 
 
 export const usePrompts = () => useQuery({ queryKey: qk.prompts(), queryFn: () => api<any[]>("/api/prompts") });
 export const usePrompt = (id: string) => useQuery({ queryKey: qk.prompt(id), queryFn: () => api<any>(`/api/prompts/${id}`), enabled: !!id });
+
+export const useNotifications = (unread?: boolean) => {
+  const path = "/api/notifications" + (unread ? "?unread=true" : "");
+  return useQuery({
+    queryKey: qk.notifications(unread),
+    queryFn: () => api<any[]>(path),
+    refetchInterval: 30_000,
+  });
+};

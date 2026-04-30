@@ -11,6 +11,7 @@ const CandidatureDetail = lazy(() => import("./routes/candidatures/$id.js"));
 const Communications = lazy(() => import("./routes/communications.js"));
 const Analytics = lazy(() => import("./routes/analytics.js"));
 const Prompts = lazy(() => import("./routes/prompts.js"));
+const Notifications = lazy(() => import("./routes/notifications.js"));
 
 const Spinner = () => <div className="p-10 text-text-muted">Chargement…</div>;
 
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="communications" element={<Communications />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="prompts" element={<Prompts />} />
+          <Route path="notifications" element={<Notifications />} />
         </Route>
         <Route path="*" element={<Navigate to="/postes" replace />} />
       </Routes>

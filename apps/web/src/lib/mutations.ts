@@ -138,6 +138,23 @@ export function useRegenerateEmail() {
   });
 }
 
+export function useMarkNotificationRead(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<any>(`/api/notifications/${id}/mark-read`, { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["notifications"] }); },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ updated: number }>("/api/notifications/mark-all-read", { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["notifications"] }); toast.success("Toutes les notifications marquées comme lues"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 export function useGenerateFichePoste() {
   return useMutation({
     mutationFn: (input: any) => api<string>("/api/ai/generate-fiche-poste", { method: "POST", json: input }),

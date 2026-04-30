@@ -84,6 +84,20 @@ export const communications = pgTable("communications", {
   idxCreated: index("idx_comm_created_at").on(t.created_at.desc()),
 }));
 
+// --- NOTIFICATIONS ---
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: text("type").notNull(), // 'job_failure' | 'heartbeat' | ...
+  severity: text("severity").notNull(), // 'info' | 'warn' | 'error'
+  titre: text("titre").notNull(),
+  message: text("message").notNull(),
+  contexte: jsonb("contexte"), // { queue: 'scoring', job_id: '...', error: '...' }
+  lue_at: timestamp("lue_at", { mode: "string" }),
+  created_at: timestamp("created_at", { mode: "string" }).notNull().defaultNow(),
+}, (t) => ({
+  idxUnread: index("idx_notifications_unread").on(t.created_at.desc()),
+}));
+
 // --- PROMPTS ---
 export const prompts = pgTable("prompts", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),

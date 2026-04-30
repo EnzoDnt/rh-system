@@ -1,6 +1,7 @@
 import { Eye, EyeOff, LogOut } from "lucide-react";
 import { useUi } from "@/stores/uiStore.js";
 import { signOut } from "@/lib/auth.js";
+import { NotificationsBell } from "./NotificationsBell.js";
 
 export function Header() {
   const { hideDates, toggleHideDates } = useUi();
@@ -15,6 +16,7 @@ export function Header() {
           <button onClick={toggleHideDates} className="p-2 hover:bg-bg rounded-[4px]" title={hideDates ? "Afficher les dates" : "Masquer les dates"}>
             {hideDates ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
+          <NotificationsBell />
           <button onClick={signOut} className="p-2 hover:bg-bg rounded-[4px]" title="Déconnexion">
             <LogOut size={18} />
           </button>

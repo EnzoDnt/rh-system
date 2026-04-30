@@ -1,22 +1,58 @@
-const NTFY_TOPIC = process.env.NTFY_TOPIC ?? "recruit-os-errors";
-const SLACK_WEBHOOK = process.env.SLACK_WEBHOOK_URL;
+import { getDb, notifications } from "@rh/db";
 
-async function post(message: string) {
-  if (SLACK_WEBHOOK) {
-    await fetch(SLACK_WEBHOOK, {
+const db = getDb();
+
+async function persistNotification(n: {
+  type: string;
+  severity: "info" | "warn" | "error";
+  titre: string;
+  message: string;
+  contexte?: Record<string, unknown>;
+}) {
+  try {
+    await db.insert(notifications).values({
+      type: n.type,
+      severity: n.severity,
+      titre: n.titre,
+      message: n.message,
+      contexte: n.contexte ?? null,
+    });
+  } catch {
+    // Swallow DB errors — notifier must never crash the caller
+  }
+}
+
+async function postExternal(message: string) {
+  if (process.env.SLACK_WEBHOOK_URL?.trim()) {
+    await fetch(process.env.SLACK_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: message }),
-    });
+    }).catch(() => {});
     return;
   }
-  await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, { method: "POST", body: message });
+  if (process.env.NTFY_TOPIC?.trim()) {
+    await fetch(`https://ntfy.sh/${process.env.NTFY_TOPIC}`, { method: "POST", body: message }).catch(() => {});
+  }
 }
 
 export async function notifyJobFailure(input: { queue: string; job_id: string; error: string }) {
-  await post(`🚨 Recrutement — queue=${input.queue} job=${input.job_id} → ${input.error}`);
+  await persistNotification({
+    type: "job_failure",
+    severity: "error",
+    titre: `Échec ${input.queue}`,
+    message: `Job ${input.job_id} échoué après retries : ${input.error}`,
+    contexte: input,
+  });
+  await postExternal(`🚨 Recrutement — queue=${input.queue} job=${input.job_id} → ${input.error}`);
 }
 
 export async function notifyHeartbeat() {
-  await post("Recrutement — heartbeat horaire OK (worker alive)");
+  await persistNotification({
+    type: "heartbeat",
+    severity: "info",
+    titre: "Worker alive",
+    message: "Heartbeat horaire OK",
+  });
+  await postExternal("Recrutement — heartbeat horaire OK (worker alive)");
 }
