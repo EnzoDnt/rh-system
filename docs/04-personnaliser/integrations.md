@@ -6,39 +6,68 @@ Comment swap chaque service externe pour un autre.
 
 | Brique | Service par défaut | Alternatives | Difficulté |
 |---|---|---|---|
-| Form builder | Formbricks | Tally, Typeform, formulaire React custom | 🟡 Moyen |
+| Form candidature | Formulaire intégré natif (`/postuler/:slug`) | Tally, Typeform, formulaire custom | 🟢 Facile (webhook) |
 | Email | Resend | Postmark, Mailgun, SES, SendGrid | 🟢 Facile |
 | Auth | Supabase | Clerk, Auth0, NextAuth | 🔴 Complexe |
 | DB | Postgres (Supabase) | Postgres self-host, Neon, Vercel Postgres | 🟢 Facile |
-| Hosting CV | Drive/Dropbox (URL externe) | Supabase Storage, S3, R2 | 🟡 Moyen |
+| Hosting CV | Supabase Storage (upload direct) | S3, R2, B2 | 🟡 Moyen |
 | Scheduling | URL générique (Calendly, Cal.com…) | Tout provider | 🟢 Facile |
 | LinkedIn scraping | Apify (opt-in via APIFY_API_KEY) | ProxyCurl, manual/none | 🟢 Facile (skip) |
 | Notifications | Dashboard /notifications | ntfy, Slack, Discord (opt-in) | 🟢 Facile |
 
-## Form builder
+## Formulaire de candidature
 
-### Garder Formbricks ?
+### Par défaut — formulaire intégré natif
 
-✅ Oui si :
-- Tu veux du self-hosted (RGPD)
-- Tu veux générer les surveys par programmation depuis le code
-- Tu acceptes la friction setup (un peu plus que Tally)
+Le système inclut un formulaire de candidature React hébergé sur `/postuler/:slug` (page publique, sans auth). Le recruteur partage l'URL depuis le dashboard (onglet "Formulaire de candidature" sur un poste).
 
-### Remplacer par Tally
+**Flow** :
+1. Le candidat ouvre `/postuler/<slug>` → charge le titre + questions via `GET /api/public/postes/:slug`
+2. Upload du CV directement vers Supabase Storage via URL signée (`POST /api/public/upload-url/:slug`)
+3. Soumission du formulaire → `POST /api/public/applications/:slug`
+4. Page "Merci" affichée
 
-1. Tally a une UI plus jolie et zéro setup
-2. Crée le formulaire à la main dans Tally avec les champs : `nom`, `email`, `telephone`, `linkedin_url`, `cv_upload` (URL), + tes questions IA
-3. Configure le webhook Tally → `https://api.your-domain.example/webhooks/formbricks?token=<secret>`
-4. Modifie l'extraction dans `apps/api/src/routes/webhooks/formbricks.ts` pour matcher le format Tally :
-   - Tally envoie `{ data: { fields: [{ key, value }, ...] } }` au lieu de Formbricks
-   - Soit tu modifies `extractSurveyId` + `extractResponseData` dans `intake.ts`, soit tu crées une nouvelle route `/webhooks/tally`
-5. La fonctionnalité "Créer le formulaire" depuis le dashboard ne marchera plus (pas d'API Tally pour créer un form). Désactive-la ou crée les forms à la main.
+Les questions sont générées par IA selon les critères du poste. Le RH peut régénérer les questions depuis le dashboard (bouton "Régénérer les questions").
 
-### Remplacer par formulaire React custom
+### Utiliser un form provider externe (Tally, Typeform, etc.)
 
-Si tu veux tout maîtriser : crée une route publique `apps/web/src/routes/postuler/$slug.tsx` avec un form React → POST direct vers `/webhooks/formbricks?token=<secret>` avec un body JSON identique au format Formbricks.
+Si tu préfères un provider externe pour l'UX du formulaire, c'est possible. Les 3 étapes :
 
-Avantage : zéro dépendance externe, contrôle total UX. Inconvénient : tu codes + maintiens le formulaire.
+1. **Créer un handler de webhook** dans `apps/api/src/routes/webhooks/` pour parser le format du provider :
+   ```typescript
+   // apps/api/src/routes/webhooks/tally.ts
+   import { Hono } from "hono";
+   import { enqueueScoring } from "../../services/queue-client.js";
+   import { getDb, postes, candidatures } from "@rh/db";
+   import { eq } from "drizzle-orm";
+
+   export const tallyWebhookRouter = new Hono()
+     .post("/", async (c) => {
+       const payload = await c.req.json();
+       // Adapter le format Tally → fields extraits par clé
+       const fields = Object.fromEntries(
+         (payload.data?.fields ?? []).map((f: any) => [f.key, f.value])
+       );
+       const slug = /* extraire depuis le form title ou un champ caché */;
+       const [poste] = await db.select().from(postes).where(eq(postes.slug, slug));
+       const [cand] = await db.insert(candidatures).values({
+         poste_id: poste.id, nom: fields.nom, email: fields.email, ...
+       }).returning();
+       await enqueueScoring(cand.id);
+       return c.json({ ok: true }, 201);
+     });
+   ```
+
+2. **Monter la route** dans `apps/api/src/routes/index.ts` :
+   ```typescript
+   import { tallyWebhookRouter } from "./webhooks/tally.js";
+   // ...
+   app.route("/webhooks/tally", tallyWebhookRouter);
+   ```
+
+3. **Configurer le webhook** dans Tally → Settings → Webhooks → `https://api.your-domain.example/webhooks/tally`
+
+La fonctionnalité "Régénérer les questions" du dashboard ne s'appliquera pas au form Tally (les questions sont gérées dans Tally). Tu peux la masquer ou l'ignorer.
 
 ## Email
 
@@ -109,29 +138,17 @@ Plug & play. Change juste `DATABASE_URL`. Drizzle marche partout.
 
 ## Hosting CV
 
-Par défaut, le candidat fournit une **URL publique** dans le champ `cv_upload` (Drive partagé, Dropbox, son site perso). Le worker fetch via `extractPdfText()`.
+Par défaut, le candidat **upload son CV directement** depuis le formulaire (`/postuler/:slug`) vers Supabase Storage (bucket `cvs`). L'upload passe par une URL signée générée par l'API — le PDF ne transite pas par l'API.
 
-### Alternative 1 — Supabase Storage privé
+### Alternative — S3 / R2 / B2
 
-Modifier la chaîne d'intake pour :
-1. Frontend Formbricks demande un upload de fichier (pas une URL) — Formbricks v3 supporte ça
-2. Le webhook reçoit un lien Formbricks vers le fichier uploadé
-3. Le worker télécharge et upload vers ton bucket Supabase privé
-4. La candidature stocke l'URL Supabase + un endpoint API `/api/candidatures/:id/cv-signed-url` génère un signed URL pour le RH
+Idem que Supabase Storage mais avec ton fournisseur. Modifie `apps/api/src/routes/public/upload-url.ts` pour générer une presigned URL S3 au lieu de Supabase.
 
-C'est ~200 lignes de code à ajouter (cf. plan original [03-04-Phase 4 (deferred)]).
-
-### Alternative 2 — S3 / R2 / B2
-
-Idem que Supabase Storage mais avec ton fournisseur. Utilise `@aws-sdk/client-s3` (compatible R2/B2 via endpoint custom).
-
-### Garder l'URL externe (par défaut, le plus simple)
-
-Tant que tu fais confiance aux candidats pour fournir un PDF accessible, c'est OK. Le worker rejette les URLs qui ne retournent pas `application/pdf`.
+Utilise `@aws-sdk/client-s3` (compatible R2/B2 via endpoint custom).
 
 ## Scheduling — lien de réservation générique
 
-Depuis la Phase 4, il n'y a plus d'intégration API Calendly. Le champ `lien_reservation_url` sur chaque poste accueille **n'importe quelle URL de réservation**.
+Il n'y a pas d'intégration API Calendly. Le champ `lien_reservation_url` sur chaque poste accueille **n'importe quelle URL de réservation**.
 
 ### URLs supportées
 
@@ -173,7 +190,7 @@ Plus cher mais API stable et meilleure qualité de data. Modifier `apps/jobs/src
 
 ## Notifications — dashboard inbox + push externe (optionnel)
 
-Depuis la Phase 4, **toutes les alertes worker sont stockées en base de données** et visibles dans le dashboard à `/notifications`. Un badge dans le header indique les alertes non-lues.
+Toutes les alertes worker sont stockées en base de données et visibles dans le dashboard à `/notifications`. Un badge dans le header indique les alertes non-lues.
 
 ### Dashboard inbox (par défaut, aucune config requise)
 
@@ -213,10 +230,6 @@ if (process.env.DISCORD_WEBHOOK_URL?.trim()) {
 }
 ```
 
-### Push externe — Telegram
-
-Bot Telegram + chat_id. ~10 lignes de code, voir [docs Telegram bot API](https://core.telegram.org/bots/api).
-
 ## Audit
 
 Quand tu remplaces une intégration, **lance les tests** avant de pousser :
@@ -224,4 +237,4 @@ Quand tu remplaces une intégration, **lance les tests** avant de pousser :
 pnpm test
 ```
 
-Et fais un E2E manuel (créer poste → soumission Formbricks → email envoyé) pour valider la chaîne complète.
+Et fais un E2E manuel (créer poste → ouvrir /postuler/:slug → soumettre une candidature de test → email envoyé) pour valider la chaîne complète.

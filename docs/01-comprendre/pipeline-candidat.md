@@ -8,7 +8,7 @@ Walkthrough détaillé de ce qui se passe quand un candidat soumet sa candidatur
 sequenceDiagram
     autonumber
     actor Cand as 👤 Candidat
-    participant FB as 📝 Formbricks
+    participant Form as 📝 /postuler/:slug
     participant API as ⚙️ API (Hono)
     participant DB as 🗄️ Postgres
     participant W as ⏱️ Worker (pg-boss)
@@ -16,20 +16,25 @@ sequenceDiagram
     participant R as ✉️ Resend
     actor RH as 🧑‍💼 Recruteur
 
-    Cand->>FB: 1. Remplit le formulaire
-    FB->>API: 2. POST /webhooks/formbricks?token=<secret>
-    API->>API: Vérifie signature
-    API->>DB: enqueue intake (pg-boss)
-    API-->>FB: 202 OK
+    Cand->>Form: 1. Ouvre le lien public du poste
+    Form->>API: GET /api/public/postes/:slug
+    API-->>Form: titre, fiche_html, questions[]
+    Cand->>Form: 2. Remplit le formulaire + upload CV
+    Form->>API: POST /api/public/upload-url/:slug (CV PDF)
+    API-->>Form: signed URL Supabase Storage
+    Form->>Form: PUT cv.pdf → Supabase Storage (direct)
+    Form->>API: POST /api/public/applications/:slug
+    API->>DB: INSERT candidature + enqueue scoring
+    API-->>Form: 201 { ok: true }
+    Form->>Cand: Page "Merci"
     Note over W: ─── Async pipeline ───
-    W->>W: 3. Extract PDF + scrape LinkedIn
-    W->>DB: INSERT candidature
-    W->>Cl: 4. Prompt guardrails (anti-injection)
+    W->>W: 3. Extraire texte PDF (intake-internal)
+    W->>Cl: 4. Guardrails (anti-injection)
     Cl-->>W: flagged: false
-    W->>Cl: 5. Prompt scoring (CV + critères poste)
+    W->>Cl: 5. Scoring (CV + critères poste)
     Cl-->>W: score=82, recommandation=retenir
     W->>DB: INSERT score + rapport
-    W->>Cl: 6. Prompt génération email (selon score)
+    W->>Cl: 6. Génération email (selon score)
     Cl-->>W: brouillon invitation
     W->>DB: INSERT communication (statut=brouillon)
     Note over RH,DB: ─── Validation humaine ───
@@ -38,42 +43,58 @@ sequenceDiagram
     API->>DB: enqueue communication
     W->>R: 8. Envoie l'email
     R->>Cand: ✉️ Email d'invitation reçu
-    Cand->>Cand: 9. Clique sur lien Calendly, réserve
+    Cand->>Cand: 9. Clique sur lien réservation, planifie entretien
 ```
 
-Les 8 étapes sont détaillées ci-dessous, avec les fichiers de code impliqués.
+Les étapes sont détaillées ci-dessous.
 
 ---
 
-## Étape 1 — Soumission Formbricks
+## Étape 1 — Formulaire public `/postuler/:slug`
 
-Le candidat remplit le formulaire sur l'URL Formbricks publique (`https://your-formbricks-domain/s/<survey-id>`). Les questions standard (nom, email, téléphone, LinkedIn, CV) sont définies en dur dans `apps/api/src/services/formbricks.ts` (`STANDARD_QUESTIONS`). Les questions IA-générées sont créées par `runFormulairePrompt()` quand le RH clique "Créer le formulaire" sur un nouveau poste.
+Le candidat reçoit le lien `https://rh.your-domain.example/postuler/<slug>` depuis le recruteur.
 
-Le `cv_upload` est un champ texte qui demande **une URL PDF accessible publiquement** (Drive partagé, Dropbox, etc.) — ce n'est **pas** un upload de fichier. Voir [04-personnaliser/integrations.md](../04-personnaliser/integrations.md#hosting-cv) pour les alternatives.
+La page charge via `GET /api/public/postes/:slug` (endpoint public, sans auth) :
+- Le titre et la description du poste (ou la fiche HTML générée)
+- La liste des questions (`questions_json`) : 5 questions standard + questions IA-générées par critère
 
-## Étape 2 — Webhook Formbricks → API
+Les questions standard sont définies dans `packages/types/src/domain.ts` (`STANDARD_QUESTIONS`) :
+- `nom` (text, requis)
+- `email` (email, requis)
+- `telephone` (tel, optionnel)
+- `linkedin_url` (url, optionnel)
+- `cv_pdf` (file_pdf, requis)
 
-Quand le candidat valide, Formbricks fire un webhook sur :
-```
-POST https://api.your-domain.example/webhooks/formbricks?token=<secret>
-```
+Les questions IA-générées sont créées par `runFormulairePrompt()` quand le RH clique "Régénérer les questions" dans le dashboard (`POST /api/postes/:id/generate-questions`).
 
-Le token query-param est validé par `apps/api/src/routes/webhooks/formbricks.ts`. Si `FORMBRICKS_WEBHOOK_SECRET` est défini, requêtes non-signées → 401.
+## Étape 2 — Soumission et upload CV
 
-Une fois validée, la requête appelle `enqueueIntake(payload)` qui pousse un job dans la queue pg-boss `intake`. Réponse : `202 { ok: true, job_id: "..." }`.
+Le candidat remplit le formulaire dans son navigateur (composant React `ApplicationForm`).
 
-## Étape 3 — Worker intake (`apps/jobs/src/handlers/intake.ts`)
+**Upload du CV (2 étapes)** :
+1. Le frontend appelle `POST /api/public/upload-url/:slug` → reçoit une URL signée Supabase Storage
+2. Upload direct `PUT <signed-url>` du PDF (max 5 MB) — bypass l'API, va directement dans le bucket `cvs`
+3. Le frontend stocke l'URL publique du fichier dans `reponses.cv_pdf`
 
-Le worker poll la queue, récupère le job, et :
+**Anti-bot** : un champ honeypot `website_url` caché est inclus. Si rempli par un bot, le serveur retourne `{ ok: false }` sans créer de candidature.
 
-1. Extrait `nom`, `email`, `téléphone`, `cv_upload`, `linkedin_url` du payload (clés tolérantes : `nom|name|fullName|...`)
-2. Match `data.surveyId` avec un poste qui a `formbricks_survey_id` correspondant en BD. Sinon → erreur "Aucun poste pour surveyId=…"
-3. Télécharge le PDF via `extractPdfText()` (`apps/jobs/src/services/pdf.ts`) — utilise unpdf, vérifie le content-type
-4. Scrape le LinkedIn via `scrapeLinkedin()` (`apps/jobs/src/services/linkedin.ts`) — utilise Apify si `APIFY_API_KEY` configuré, sinon retourne null
-5. Insère une nouvelle ligne dans `candidatures` (statut `nouveau`)
-6. Enqueue un job `scoring` pour cette candidature
+**Soumission** : `POST /api/public/applications/:slug` avec `{ website_url, reponses }`.
+- Rate-limit : 5 requêtes / 15 minutes / IP
+- Validation côté serveur : champs requis, format email, format URL
 
-**Gotcha** : si le PDF n'est pas accessible (404, mauvais content-type), `extractPdfText` retourne null et la candidature est créée avec `cv_texte_extrait: null`. Le scoring continuera mais avec un input incomplet → score forcément plus bas.
+La candidature est insérée dans `candidatures` et un job `scoring` est enqueued dans pg-boss.
+
+## Étape 3 — Worker intake-internal (`apps/jobs/src/handlers/intake-internal.ts`)
+
+Handler léger qui enrichit la candidature avec le texte du CV :
+
+1. Reçoit `{ candidature_id }` depuis la queue `intake-internal`
+2. Télécharge le PDF depuis Supabase Storage via `extractPdfText()` (`apps/jobs/src/services/pdf.ts`)
+3. Met à jour `cv_texte_extrait` sur la candidature
+
+Note : le scoring est déjà enqueued par l'API. Ce handler enrichit seulement le contenu avant que le scoring s'exécute.
+
+**Gotcha** : si le PDF n'est pas accessible (404, mauvais content-type), `extractPdfText` retourne null et la candidature est scorée avec `cv_texte_extrait: null`. Le scoring continue avec un input incomplet → score potentiellement plus bas.
 
 ## Étape 4 — Worker scoring (`apps/jobs/src/handlers/scoring.ts`)
 
@@ -89,10 +110,9 @@ Le coût Claude est tracé dans `ai_calls` après chaque appel. Voir [05-operer/
 
 ## Étape 5 — Worker communication (`apps/jobs/src/handlers/communication.ts`)
 
-1. Charge la candidature, le poste, le score, et le `calendly_event_type` du poste si applicable
-2. Si invitation et Calendly configuré : `createSchedulingLink()` génère un lien unique pour le candidat
-3. `runEmailPrompt()` (Claude Sonnet, tool use) génère sujet + contenu de l'email selon le type (`invitation`/`refus`/`relance`)
-4. Insère dans `communications` avec `statut: brouillon`
+1. Charge la candidature, le poste, le score, et le `lien_reservation_url` du poste si applicable
+2. `runEmailPrompt()` (Claude Sonnet, tool use) génère sujet + contenu de l'email selon le type (`invitation`/`refus`/`relance`)
+3. Insère dans `communications` avec `statut: brouillon`
 
 À ce stade, **rien n'est encore envoyé**. Le RH voit le brouillon dans le dashboard et peut éditer.
 
@@ -113,9 +133,9 @@ Dans `https://rh.your-domain.example/candidatures/:id` :
 
 En cas d'échec Resend (TLD invalide, quota, etc.), statut → `erreur` + notif ntfy.
 
-## Étape 7 — Candidat reçoit + clique Calendly
+## Étape 7 — Candidat reçoit + réserve un entretien
 
-Le candidat ouvre l'email, clique le lien Calendly, choisit un créneau. Calendly notifie l'organisateur par email (pas d'intégration backend dans la version actuelle — le RH gère les confirmations dans Google Calendar).
+Le candidat ouvre l'email, clique le lien de réservation (`lien_reservation_url` du poste : Calendly, Cal.com, ou autre). Le RH gère les confirmations dans son agenda.
 
 ## Points d'extension
 

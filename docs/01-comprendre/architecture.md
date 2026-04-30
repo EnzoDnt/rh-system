@@ -10,29 +10,27 @@ flowchart LR
     RH([🧑‍💼 Recruteur RH])
 
     subgraph Externe["Services externes (SaaS)"]
-        Formbricks[📝 Formbricks<br/>Formulaires]
         Resend[✉️ Resend<br/>Envoi emails]
         Anthropic[🧠 Claude Sonnet<br/>Anthropic]
-        Calendly[📅 Calendly<br/>RDV]
         Apify[🔍 Apify<br/>LinkedIn scraper]
     end
 
     subgraph App["Système (3 services)"]
-        Web[🖥️ Web<br/>React + Vite]
+        Web[🖥️ Web<br/>React + Vite<br/>+ /postuler/:slug]
         API[⚙️ API<br/>Hono / Node]
         Worker[⏱️ Worker<br/>pg-boss / Node]
     end
 
     subgraph Data["Données + Auth (Supabase)"]
-        Postgres[(🗄️ Postgres<br/>+ Storage<br/>+ Auth)]
+        Postgres[(🗄️ Postgres<br/>+ Storage CVs<br/>+ Auth)]
     end
 
-    Candidat -->|Remplit le<br/>formulaire| Formbricks
-    Formbricks -->|webhook<br/>signé| API
+    Candidat -->|Ouvre le<br/>formulaire public| Web
+    Web -->|POST /api/public/...| API
+    Web -->|Upload CV direct| Postgres
     API -.->|enqueue| Worker
     Worker -->|score CV +<br/>génère email| Anthropic
     Worker -->|envoie email<br/>à candidat| Resend
-    Worker -->|insère lien| Calendly
     Worker -.->|scrape| Apify
 
     RH -->|magic link| Web
@@ -41,10 +39,9 @@ flowchart LR
     Worker <-->|read/write| Postgres
 
     Resend -->|email final| Candidat
-    Candidat -->|réserve un RDV| Calendly
 ```
 
-3 services applicatifs (web, api, worker), une base Supabase, une poignée de SaaS externes. Tout est lié par des **événements** : un webhook Formbricks déclenche un job, qui enchaîne des appels Claude, qui finit par un email Resend.
+3 services applicatifs (web, api, worker), une base Supabase, 3 SaaS externes. Tout est lié par des **événements** : la soumission du formulaire public déclenche un job, qui enchaîne des appels Claude, qui finit par un email Resend.
 
 ---
 
@@ -52,10 +49,11 @@ flowchart LR
 
 Tous écrits en **TypeScript**, déployés via Docker. Chacun est isolé : il peut crasher sans entraîner les autres.
 
-### `web` — interface du recruteur
+### `web` — interface du recruteur + formulaire public candidat
 
-- **Stack** : React 19 + Vite + TanStack Router + TanStack Query + Tailwind
-- **Rôle** : un dashboard interne, accessible uniquement après magic-link Supabase. 5 onglets (Postes, Candidatures, Communications, Analytics, Prompts IA).
+- **Stack** : React 19 + Vite + react-router-dom + TanStack Query + Tailwind
+- **Routes dashboard** : accessibles uniquement après magic-link Supabase. 5 onglets (Postes, Candidatures, Communications, Analytics, Prompts IA).
+- **Route publique** : `/postuler/:slug` — page de candidature sans auth, servie à tous.
 - **Authentification** : Supabase Auth, JWT envoyé en `Authorization: Bearer <token>` à l'API. Aucune session côté serveur web.
 - **Pas de SSR** : SPA pure servie par nginx.
 
@@ -63,19 +61,20 @@ Tous écrits en **TypeScript**, déployés via Docker. Chacun est isolé : il pe
 
 - **Stack** : Hono sur Node.js, Drizzle ORM, Zod
 - **Rôle** : 30+ endpoints REST. CRUD postes/candidatures/communications, génération synchrone (fiche de poste, email, critères, formulaire), enqueue de jobs asynchrones.
-- **Authentification** : middleware qui vérifie le JWT Supabase via JWKS (ES256). CORS configuré pour le domaine web. Webhook Formbricks signé via `?token=<secret>`.
+- **Routes publiques** : `GET /api/public/postes/:slug`, `POST /api/public/applications/:slug`, `POST /api/public/upload-url/:slug` — sans auth, avec rate-limiting.
+- **Authentification** : middleware qui vérifie le JWT Supabase via JWKS (ES256). CORS configuré pour le domaine web.
 - **Persistence** : connexion directe à Postgres Supabase via Drizzle. Pas de cache.
 
 ### `worker` — exécuteur de jobs
 
 - **Stack** : pg-boss v10 (file d'attente sur Postgres), Node.js
-- **Rôle** : 4 queues (`intake`, `scoring`, `communication`, `heartbeat`). Reçoit des jobs depuis l'API ou via le scheduler interne (cron pg-boss), les exécute, retry automatique sur échec.
+- **Rôle** : 4 queues (`intake-internal`, `scoring`, `communication`, `heartbeat`). Reçoit des jobs depuis l'API ou via le scheduler interne (cron pg-boss), les exécute, retry automatique sur échec.
 - **Particularité** : pg-boss utilise Postgres lui-même comme broker → zéro infrastructure additionnelle (pas de Redis).
 
 ### Pourquoi 3 services et pas 1 monolithe ?
 
 - **Isoler les failures** : si Claude est down, le worker accumule des jobs en attente, mais l'API et le web continuent de servir le dashboard.
-- **Scaler indépendamment** : un burst de candidatures Formbricks ne charge pas le web ; on multiplie les workers sans toucher à l'API.
+- **Scaler indépendamment** : un burst de candidatures ne charge pas le web ; on multiplie les workers sans toucher à l'API.
 - **Déploiement séparé** : on peut redéployer le worker sans interrompre les utilisateurs RH connectés.
 
 ---
@@ -88,10 +87,10 @@ Une seule instance Postgres hébergée par Supabase. Schéma piloté par Drizzle
 
 | Table | Rôle |
 |---|---|
-| `postes` | Les offres de recrutement (titre, description, critères, fiche HTML générée, lien Formbricks) |
+| `postes` | Les offres de recrutement (titre, description, critères, fiche HTML, slug, questions_json) |
 | `candidatures` | Les candidats reçus (nom, email, CV, statut, notes RH) |
 | `scores` | Une ligne par candidature : score IA + détails par critère + rapport markdown généré |
-| `communications` | Brouillons et emails envoyés (sujet, contenu, statut, lien Calendly intégré) |
+| `communications` | Brouillons et emails envoyés (sujet, contenu, statut, lien réservation intégré) |
 | `prompts` | Les 6 prompts IA en BD (éditables depuis l'UI, sans redéploiement) |
 | `prompts_history` | Historique de toutes les versions de chaque prompt |
 | `ai_calls` | Log de chaque appel Claude (tokens, coût EUR, type de prompt) |
@@ -115,9 +114,7 @@ Détail complet du modèle : [99-reference/modele-de-donnees.md](../99-reference
 Supabase apporte 3 services en un :
 - **Postgres** pour les données métier
 - **Auth** pour les magic links recruteur (table `auth.users` séparée)
-- **Storage** pour héberger des fichiers (PDFs, logos) si tu veux
-
-L'usage de Storage est optionnel : par défaut les CVs sont des URLs externes (Drive, Dropbox) que les candidats fournissent eux-mêmes via Formbricks.
+- **Storage** pour héberger les CVs uploadés via le formulaire public (bucket `cvs`)
 
 ---
 
@@ -127,36 +124,38 @@ L'usage de Storage est optionnel : par défaut les CVs sont des URLs externes (D
 sequenceDiagram
     autonumber
     participant C as Candidat
-    participant FB as Formbricks
+    participant W as Web /postuler/:slug
     participant API as API (Hono)
     participant Q as pg-boss queue
-    participant W as Worker
+    participant WK as Worker
     participant Cl as Claude
     participant DB as Postgres
     participant R as Resend
 
-    C->>FB: Remplit le formulaire
-    FB->>API: POST /webhooks/formbricks?token=<secret>
-    API->>API: Vérifie signature
-    API->>Q: enqueue intake
-    API-->>FB: 202 OK
-    Q->>W: dequeue intake
-    W->>W: Extrait CV (PDF text), scrape LinkedIn (optionnel)
-    W->>DB: INSERT candidature
-    W->>Cl: prompt guardrails (détection injection)
-    Cl-->>W: flagged true/false
-    W->>Cl: prompt scoring
-    Cl-->>W: score + rapport
-    W->>DB: INSERT scores
-    W->>Cl: prompt génération email
-    Cl-->>W: brouillon email
-    W->>DB: INSERT communications (statut=brouillon)
-    Note over W,DB: Le RH valide le brouillon depuis le dashboard
-    W->>R: send email validé
+    C->>W: Ouvre le formulaire public
+    W->>API: GET /api/public/postes/:slug
+    W->>API: POST /api/public/upload-url/:slug (CV)
+    W->>DB: PUT cv.pdf → Supabase Storage (direct)
+    W->>API: POST /api/public/applications/:slug
+    API->>Q: enqueue scoring
+    API-->>W: 201 OK
+    W-->>C: Page "Merci"
+    Q->>WK: dequeue intake-internal (enrichit CV texte)
+    Q->>WK: dequeue scoring
+    WK->>Cl: prompt guardrails (détection injection)
+    Cl-->>WK: flagged true/false
+    WK->>Cl: prompt scoring
+    Cl-->>WK: score + rapport
+    WK->>DB: INSERT scores
+    WK->>Cl: prompt génération email
+    Cl-->>WK: brouillon email
+    WK->>DB: INSERT communications (statut=brouillon)
+    Note over WK,DB: Le RH valide le brouillon depuis le dashboard
+    WK->>R: send email validé
     R-->>C: Email d'invitation
 ```
 
-7 étapes principales, chacune indépendante et retry-able. Si Claude échoue à l'étape 5, le worker retry 3 fois ; après échec final, une notification ntfy/Slack alerte le RH.
+7 étapes principales, chacune indépendante et retry-able. Si Claude échoue à l'étape scoring, le worker retry 3 fois ; après échec final, une notification alerte le RH dans le dashboard.
 
 Détails par flow : [pipeline-candidat.md](pipeline-candidat.md).
 
@@ -164,7 +163,7 @@ Détails par flow : [pipeline-candidat.md](pipeline-candidat.md).
 
 ## Les services externes utilisés
 
-Le système n'est pas autosuffisant. Il s'appuie sur 6 SaaS, chacun jouant un rôle précis.
+Le système s'appuie sur 4 SaaS, chacun jouant un rôle précis.
 
 ```mermaid
 mindmap
@@ -179,17 +178,12 @@ mindmap
         Scoring CV
         Génération emails
         Génération fiches
+        Génération questions
         Guardrails
-    Réception candidatures
-      Formbricks
-        Formulaires personnalisables
-        Webhook signé
     Communication
       Resend
         Envoi emails transactionnels
         DKIM/SPF
-      Calendly
-        Liens entretien
     Enrichissement
       Apify
         Scrape LinkedIn
@@ -218,8 +212,8 @@ flowchart TD
     Postes --> NewPoste[Nouveau poste]
     NewPoste --> AIcrit[L'IA génère<br/>5-8 critères]
     AIcrit --> AIfiche[L'IA génère<br/>une fiche de poste HTML]
-    AIfiche --> Form[Crée formulaire<br/>Formbricks auto]
-    Form --> Live[Lien public<br/>partageable]
+    AIfiche --> GenQ[L'IA génère<br/>les questions formulaire]
+    GenQ --> Live[Lien public /postuler/:slug<br/>partageable]
 
     Cand --> Detail[Détail candidat]
     Detail --> Score[Voir score IA<br/>+ rapport]
@@ -238,7 +232,7 @@ Pour que tu (ou ton agent IA) ne sois pas surpris :
 - **Workspace TS via tsx** : les packages `packages/*` exportent du TypeScript source, pas du `dist/`. En prod, on lance les apps avec `node --import tsx src/index.ts`.
 - **CORS avant auth** : dans Hono, l'ordre des middlewares compte. CORS doit s'exécuter avant le check auth, sinon les preflights OPTIONS sont rejetés en 401.
 - **pg-boss v10** : il faut appeler `boss.createQueue(name)` avant tout `send()` ou `work()`, sinon `send()` retourne `null` silencieusement.
-- **Webhook Formbricks signé via query param** : `?token=<secret>` dans l'URL (Formbricks self-hosted ne supporte pas HMAC headers).
+- **Routes publiques** : montées AVANT le middleware auth dans `apps/api/src/routes/index.ts`. Ne jamais mettre une route publique derrière `app.use("/api/*", auth)`.
 - **Radix Select** : `<SelectItem value="">` est interdit (utiliser un sentinel `"__none__"`).
 
 Liste exhaustive des conventions : [AGENTS.md](../../AGENTS.md) à la racine du repo.
