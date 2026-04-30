@@ -13,7 +13,7 @@ const CreateBody = z.object({
   titre: z.string().min(1),
   description: z.string().min(1),
   criteres_scoring: CriteresScoringSchema,
-  calendly_event_type: z.string().nullable().optional(),
+  lien_reservation_url: z.string().nullable().optional(),
   fiche_brief: z.string().nullable().optional(),
 });
 
@@ -22,7 +22,7 @@ const PatchBody = z.object({
   description: z.string().optional(),
   criteres_scoring: CriteresScoringSchema.optional(),
   statut: PosteStatutSchema.optional(),
-  calendly_event_type: z.string().nullable().optional(),
+  lien_reservation_url: z.string().nullable().optional(),
   formbricks_survey_id: z.string().nullable().optional(),
   fiche_html: z.string().optional(),
   fiche_brief: z.string().optional(),
@@ -34,7 +34,7 @@ export const postesRouter = new Hono()
   .get("/", async (c) => {
     const rows = await db.execute<any>(sql`
       SELECT p.id, p.titre, p.description, p.criteres_scoring,
-             p.formbricks_survey_id, p.statut, p.calendly_event_type,
+             p.formbricks_survey_id, p.statut, p.lien_reservation_url,
              p.created_at, p.updated_at,
              COUNT(c.id)::int AS nb_candidatures
         FROM postes p
@@ -71,7 +71,7 @@ export const postesRouter = new Hono()
       titre: body.titre,
       description: body.description,
       criteres_scoring: body.criteres_scoring,
-      calendly_event_type: body.calendly_event_type ?? null,
+      lien_reservation_url: body.lien_reservation_url ?? null,
       fiche_brief: body.fiche_brief ?? null,
     }).returning();
     return c.json(row, 201);

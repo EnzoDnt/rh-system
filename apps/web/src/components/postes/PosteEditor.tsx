@@ -6,23 +6,19 @@ import { Textarea } from "@/components/ui/textarea.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.js";
 import { CriteresEditor } from "./CriteresEditor.js";
 import { useUpdatePoste } from "@/lib/mutations.js";
-import { useCalendlyEvents } from "@/lib/queries.js";
-
-const NONE_CALENDLY = "__none__";
 
 export function PosteEditor({ poste }: { poste: any }) {
   const [titre, setTitre] = useState(poste.titre);
   const [description, setDescription] = useState(poste.description ?? "");
   const [statut, setStatut] = useState(poste.statut);
-  const [calendly, setCalendly] = useState<string>(poste.calendly_event_type ?? "");
+  const [lienReservation, setLienReservation] = useState<string>(poste.lien_reservation_url ?? "");
   const [criteres, setCriteres] = useState(poste.criteres_scoring ?? {});
   const update = useUpdatePoste(poste.id);
-  const { data: events } = useCalendlyEvents();
 
   useEffect(() => { setCriteres(poste.criteres_scoring ?? {}); }, [poste.id]);
 
   async function save() {
-    await update.mutateAsync({ titre, description, statut, calendly_event_type: calendly || null, criteres_scoring: criteres });
+    await update.mutateAsync({ titre, description, statut, lien_reservation_url: lienReservation || null, criteres_scoring: criteres });
   }
 
   return (
@@ -48,14 +44,16 @@ export function PosteEditor({ poste }: { poste: any }) {
           </Select>
         </div>
         <div>
-          <Label className="text-xs text-text-secondary">Calendly event type</Label>
-          <Select value={calendly || NONE_CALENDLY} onValueChange={(v) => setCalendly(v === NONE_CALENDLY ? "" : v)}>
-            <SelectTrigger><SelectValue placeholder="Aucun" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE_CALENDLY}>Aucun</SelectItem>
-              {(events ?? []).map((e: any) => <SelectItem key={e.uri} value={e.uri}>{e.name} ({e.duration} min)</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Label className="text-xs text-text-secondary">Lien de réservation entretien</Label>
+          <Input
+            type="url"
+            value={lienReservation}
+            onChange={(e) => setLienReservation(e.target.value)}
+            placeholder="https://cal.com/votre-username/entretien"
+          />
+          <p className="text-[11px] text-text-muted mt-1">
+            Colle n&apos;importe quelle URL de réservation (Calendly, Cal.com, Notion, Google Form, etc.). Insérée telle quelle dans les emails d&apos;invitation.
+          </p>
         </div>
       </div>
       <div>

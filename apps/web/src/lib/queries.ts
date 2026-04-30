@@ -10,7 +10,6 @@ export const qk = {
   analytics: () => ["analytics"] as const,
   prompts: () => ["prompts"] as const,
   prompt: (id: string) => ["prompts", id] as const,
-  calendlyEvents: () => ["calendly", "events"] as const,
 };
 
 export const usePostes = () => useQuery({ queryKey: qk.postes(), queryFn: () => api<any[]>("/api/postes") });
@@ -35,5 +34,3 @@ export const useAnalytics = () => useQuery({ queryKey: qk.analytics(), queryFn: 
 
 export const usePrompts = () => useQuery({ queryKey: qk.prompts(), queryFn: () => api<any[]>("/api/prompts") });
 export const usePrompt = (id: string) => useQuery({ queryKey: qk.prompt(id), queryFn: () => api<any>(`/api/prompts/${id}`), enabled: !!id });
-
-export const useCalendlyEvents = () => useQuery({ queryKey: qk.calendlyEvents(), queryFn: () => api<any[]>("/api/calendly/events") });

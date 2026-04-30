@@ -2,7 +2,6 @@ import type PgBoss from "pg-boss";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../services/shared.js";
 import { postes, candidatures, communications } from "@rh/db";
-import { createSchedulingLink } from "../lib/calendly-from-api.js";
 import { sendEmail } from "../services/email.js";
 import { notifyJobFailure } from "./../services/notifier.js";
 
@@ -20,7 +19,7 @@ export async function processCommunication(input: { communication_id: string }):
     .select({
       comm: communications,
       cand: { id: candidatures.id, nom: candidatures.nom, email: candidatures.email },
-      poste_calendly: postes.calendly_event_type,
+      poste_lien: postes.lien_reservation_url,
     })
     .from(communications)
     .innerJoin(candidatures, eq(candidatures.id, communications.candidature_id))
@@ -30,24 +29,24 @@ export async function processCommunication(input: { communication_id: string }):
   if (row.comm.statut !== "valide") throw new Error(`Communication ${id} pas en statut 'valide'`);
 
   let body = row.comm.contenu;
-  let calendly_link: string | null = null;
+  let reservation_link: string | null = null;
 
   if (row.comm.type === "invitation" || row.comm.type === "relance") {
-    if (row.poste_calendly) {
-      const booking = await createSchedulingLink(row.poste_calendly);
-      const url = `${booking}?name=${encodeURIComponent(row.cand.nom)}&email=${encodeURIComponent(row.cand.email)}`;
-      calendly_link = url;
+    if (row.poste_lien) {
+      // Use the URL directly — append name/email prefill params (works with Calendly, Cal.com, and others)
+      const url = `${row.poste_lien}?name=${encodeURIComponent(row.cand.nom)}&email=${encodeURIComponent(row.cand.email)}`;
+      reservation_link = url;
       body = body.replace(/\[LIEN_CALENDLY\]/g, url);
     }
   }
 
   // For invitation/relance: the placeholder must have been present AND replaced.
-  // Abort if: placeholder still in body (calendly missing), or placeholder was never there.
-  const needsCalendly = row.comm.type === "invitation" || row.comm.type === "relance";
+  // Abort if: placeholder still in body (reservation URL missing), or placeholder was never there.
+  const needsLink = row.comm.type === "invitation" || row.comm.type === "relance";
   const hadPlaceholder = row.comm.contenu.includes("[LIEN_CALENDLY]");
-  if (body.includes("[LIEN_CALENDLY]") || (needsCalendly && !hadPlaceholder && calendly_link === null) || (needsCalendly && !hadPlaceholder && row.poste_calendly !== null)) {
+  if (body.includes("[LIEN_CALENDLY]") || (needsLink && !hadPlaceholder && reservation_link === null) || (needsLink && !hadPlaceholder && row.poste_lien !== null)) {
     await db.update(communications).set({ statut: "erreur" }).where(eq(communications.id, id));
-    throw new Error("Email refusé : placeholder [LIEN_CALENDLY] non remplacé (calendly_event_type manquant sur le poste ?)");
+    throw new Error("Email refusé : placeholder [LIEN_CALENDLY] non remplacé (lien_reservation_url manquant sur le poste ?)");
   }
 
   let message_id: string;
@@ -62,7 +61,7 @@ export async function processCommunication(input: { communication_id: string }):
   await db.update(communications).set({
     statut: "envoye",
     envoye_at: sql`NOW()`,
-    calendly_link,
+    calendly_link: reservation_link,
   }).where(eq(communications.id, id));
 
   const next = NEXT_STATUT[row.comm.type];

@@ -7,7 +7,6 @@ import { communicationsRouter } from "./communications.js";
 import { analyticsRouter } from "./analytics.js";
 import { promptsRouter } from "./prompts.js";
 import { aiRouter } from "./ai.js";
-import { calendlyRouter } from "./calendly.js";
 import { formbricksWebhookRouter } from "./webhooks/formbricks.js";
 import { fichesRouter } from "./public/fiches.js";
 import { configRouter } from "./config.js";
@@ -28,7 +27,6 @@ export function mountRoutes(app: Hono, opts: MountOptions = {}) {
   app.route("/api/analytics", analyticsRouter);
   app.route("/api/prompts", promptsRouter);
   app.route("/api/ai", aiRouter);
-  app.route("/api/calendly", calendlyRouter);
   app.route("/webhooks/formbricks", formbricksWebhookRouter);
   app.route("/fiches", fichesRouter);
 }

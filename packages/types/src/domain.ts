@@ -57,7 +57,7 @@ export const PosteSchema = z.object({
   description: z.string().nullable().optional(),
   criteres_scoring: CriteresScoringSchema,
   formbricks_survey_id: z.string().nullable().optional(),
-  calendly_event_type: z.string().nullable().optional(),
+  lien_reservation_url: z.string().nullable().optional(),
   fiche_html: z.string().nullable().optional(),
   fiche_brief: z.string().nullable().optional(),
   statut: PosteStatutSchema.optional(),

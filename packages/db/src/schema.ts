@@ -8,7 +8,7 @@ export const postes = pgTable("postes", {
   description: text("description"),
   criteres_scoring: jsonb("criteres_scoring").notNull().default(sql`'{}'::jsonb`),
   formbricks_survey_id: text("formbricks_survey_id"),
-  calendly_event_type: text("calendly_event_type"),
+  lien_reservation_url: text("lien_reservation_url"),
   fiche_html: text("fiche_html"),
   fiche_brief: text("fiche_brief"),
   statut: text("statut").notNull().default("ouvert"),
