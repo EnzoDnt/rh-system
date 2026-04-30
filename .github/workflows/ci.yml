@@ -1,0 +1,61 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      SUPABASE_URL: https://test.supabase.co
+      SUPABASE_ANON_KEY: anon
+      SUPABASE_SERVICE_ROLE_KEY: service
+      ANTHROPIC_API_KEY: sk-ant-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.12.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20.11.1, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Pre-create Supabase-style roles (referenced by RLS migration)
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "
+            DO \$\$ BEGIN
+              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
+              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
+              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role; END IF;
+            END \$\$;"
+      - name: Write .env for scripts that read --env-file=../../.env
+        run: |
+          cat > .env <<EOF
+          DATABASE_URL=$DATABASE_URL
+          SUPABASE_URL=$SUPABASE_URL
+          SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+          SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
+          ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
+          PUBLIC_API_URL=https://api.example.com
+          PUBLIC_WEB_URL=https://web.example.com
+          PUBLIC_FICHES_URL=https://fiches.example.com
+          EOF
+      - name: DB migrate + seed
+        run: |
+          pnpm --filter @rh/db migrate
+          pnpm --filter @rh/db seed
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm --filter @rh/web build
