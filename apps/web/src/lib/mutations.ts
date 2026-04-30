@@ -89,6 +89,15 @@ export function useSendCommunication(id: string, candidatureId: string) {
   });
 }
 
+export function useMarkCommunicationSent(id: string, candidatureId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<any>(`/api/communications/${id}/mark-sent`, { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.candidature(candidatureId) }); toast.success("Communication marquée comme envoyée"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 export function useUpdatePrompt(id: string) {
   const qc = useQueryClient();
   return useMutation({

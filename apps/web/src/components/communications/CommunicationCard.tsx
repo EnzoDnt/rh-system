@@ -6,6 +6,7 @@ const STATUT_BG: Record<string, string> = {
   valide: "bg-[#fef3cd] text-[#856404] border-[#ffeeba]",
   envoye: "bg-[#d4edda] text-[#155724] border-[#c3e6cb]",
   erreur: "bg-[#f8d7da] text-[#721c24] border-[#f5c6cb]",
+  marque_envoye: "bg-[#cce5ff] text-[#004085] border-[#b8daff]",
 };
 
 export function CommunicationCard({ c }: { c: any }) {
