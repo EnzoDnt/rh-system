@@ -8,6 +8,7 @@ import PgBoss from "pg-boss";
 import { loadEnv } from "@rh/config";
 
 export const QUEUE_INTAKE = "intake";
+export const QUEUE_INTAKE_INTERNAL = "intake-internal";
 export const QUEUE_SCORING = "scoring";
 export const QUEUE_COMMUNICATION = "communication";
 
@@ -27,6 +28,7 @@ async function getBoss(): Promise<PgBoss> {
     // pg-boss v10 requires queues to exist before send/work. Idempotent.
     await Promise.all([
       boss.createQueue(QUEUE_INTAKE),
+      boss.createQueue(QUEUE_INTAKE_INTERNAL),
       boss.createQueue(QUEUE_SCORING),
       boss.createQueue(QUEUE_COMMUNICATION),
     ]);
@@ -58,6 +60,15 @@ export async function enqueueCommunication(communication_id: string): Promise<{ 
 export async function enqueueIntake(payload: unknown): Promise<{ id: string }> {
   const boss = await getBoss();
   const id = await boss.send(QUEUE_INTAKE, payload as object, {
+    retryLimit: 3, retryBackoff: true, expireInHours: 1,
+  });
+  if (!id) throw new Error("pg-boss send returned null id");
+  return { id };
+}
+
+export async function enqueueInternalIntake(candidature_id: string): Promise<{ id: string }> {
+  const boss = await getBoss();
+  const id = await boss.send(QUEUE_INTAKE_INTERNAL, { candidature_id }, {
     retryLimit: 3, retryBackoff: true, expireInHours: 1,
   });
   if (!id) throw new Error("pg-boss send returned null id");

@@ -1,6 +1,7 @@
 import PgBoss from "pg-boss";
 import { loadEnv } from "@rh/config";
 import { registerIntake } from "./handlers/intake.js";
+import { registerInternalIntake } from "./handlers/intake-internal.js";
 import { registerScoring } from "./handlers/scoring.js";
 import { registerCommunication } from "./handlers/communication.js";
 import { registerHeartbeat } from "./handlers/heartbeat.js";
@@ -18,10 +19,11 @@ async function main() {
   console.log("✓ pg-boss started, schema=pgboss");
 
   await registerIntake(boss);
+  await registerInternalIntake(boss);
   await registerScoring(boss);
   await registerCommunication(boss);
   await registerHeartbeat(boss);
-  console.log("✓ handlers registered: intake, scoring, communication, heartbeat");
+  console.log("✓ handlers registered: intake, intake-internal, scoring, communication, heartbeat");
 
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     process.on(sig, async () => {
