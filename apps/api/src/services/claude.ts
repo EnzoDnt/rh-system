@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import { getDb, prompts } from "@rh/db";
 import {
   ScoringResponseSchema, EmailResponseSchema, GuardrailsResponseSchema,
-  type ScoringResponse, type EmailResponse, type GuardrailsResponse,
+  QuestionsArraySchema,
+  type ScoringResponse, type EmailResponse, type GuardrailsResponse, type Question,
 } from "@rh/types";
 import {
   scoringUserPrompt, emailUserPrompt, criteresUserPrompt,
@@ -176,11 +177,11 @@ export async function runFichePostePrompt(input: {
   return match ? match[0] : text;
 }
 
-// --- FORMULAIRE (raw JSON array) ---
+// --- FORMULAIRE (Question[] validated by Zod) ---
 export async function runFormulairePrompt(input: {
   poste_titre: string; poste_description: string;
   criteres: Record<string, { poids: number; description: string }>;
-}) {
+}): Promise<Question[]> {
   const { system_prompt, model } = await loadPrompt("generation_formulaire");
   const response = await client().messages.create({
     model, max_tokens: 4096,
@@ -191,5 +192,6 @@ export async function runFormulairePrompt(input: {
   const text = response.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
   const match = text.match(/\[[\s\S]*\]/);
   if (!match) throw new Error("Claude did not return a JSON array");
-  return JSON.parse(match[0]) as Array<Record<string, unknown>>;
+  const parsed = JSON.parse(match[0]);
+  return QuestionsArraySchema.parse(parsed); // throws ZodError if invalid
 }

@@ -5,7 +5,7 @@ vi.mock("../src/services/claude.js", () => ({
   runCriteresPrompt: vi.fn(async () => ({ competences_techniques: { poids: 60, description: "TS" } })),
   runEmailPrompt: vi.fn(async () => ({ sujet: "subj", contenu: "body" })),
   runFichePostePrompt: vi.fn(async () => "<!DOCTYPE html><html><body>x</body></html>"),
-  runFormulairePrompt: vi.fn(async () => [{ id: "q1", type: "openText", headline: "h" }]),
+  runFormulairePrompt: vi.fn(async () => [{ id: "experience_poste", type: "long_text", label: "Décris ton expérience", required: true }]),
 }));
 
 const app = buildTestApp();

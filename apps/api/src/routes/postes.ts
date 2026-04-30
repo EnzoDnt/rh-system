@@ -3,9 +3,10 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import { getDb, postes, candidatures, scores } from "@rh/db";
-import { CriteresScoringSchema, PosteStatutSchema } from "@rh/types";
+import { CriteresScoringSchema, PosteStatutSchema, STANDARD_QUESTIONS } from "@rh/types";
 import { Errors } from "../lib/http.js";
 import { setupWebhook, createSurvey } from "../services/formbricks.js";
+import { runFormulairePrompt } from "../services/claude.js";
 
 const db = getDb();
 
@@ -112,4 +113,25 @@ export const postesRouter = new Hono()
     const targetUrl = targetUrlObj.toString();
     const webhook = await setupWebhook({ survey_id: survey.survey_id, targetUrl });
     return c.json({ ...survey, webhook });
+  })
+
+  // POST /api/postes/:id/generate-questions
+  // Génère les questions via IA et les persiste dans postes.questions_json.
+  // Les standards (nom, email, tel, linkedin, cv) sont ajoutés automatiquement en tête.
+  // Ne touche PAS à formbricks_survey_id (gardé pour rétro-compat Phase 5A).
+  .post("/:id/generate-questions", async (c) => {
+    const id = c.req.param("id");
+    const [poste] = await db.select().from(postes).where(eq(postes.id, id));
+    if (!poste) throw Errors.notFound("Poste");
+    if (!poste.description) return c.json({ error: "Le poste n'a pas de description" }, 400);
+    const criteres = (poste.criteres_scoring ?? {}) as Record<string, { poids: number; description: string }>;
+    const customQuestions = await runFormulairePrompt({
+      poste_titre: poste.titre,
+      poste_description: poste.description,
+      criteres,
+    });
+    const allQuestions = [...STANDARD_QUESTIONS, ...customQuestions];
+    const [updated] = await db.update(postes).set({ questions_json: allQuestions }).where(eq(postes.id, id))
+      .returning({ id: postes.id, titre: postes.titre, questions_json: postes.questions_json });
+    return c.json({ questions: allQuestions, poste: updated }, 200);
   });
