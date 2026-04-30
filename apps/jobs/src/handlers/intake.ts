@@ -50,7 +50,9 @@ export async function processIntakePayload(payload: any): Promise<{ candidature_
   }
 
   const cv_texte_extrait = cv_url ? (await extractPdfText(cv_url))?.text ?? null : null;
-  const linkedin_data = linkedin_url ? (await scrapeLinkedin(linkedin_url))?.data ?? null : null;
+  const linkedin_data = (linkedin_url && process.env.APIFY_API_KEY?.trim())
+    ? (await scrapeLinkedin(linkedin_url).catch(() => null))?.data ?? null
+    : null;
 
   const [row] = await db.insert(candidatures).values({
     poste_id: poste.id, nom, email,

@@ -11,9 +11,9 @@ Comment swap chaque service externe pour un autre.
 | Auth | Supabase | Clerk, Auth0, NextAuth | 🔴 Complexe |
 | DB | Postgres (Supabase) | Postgres self-host, Neon, Vercel Postgres | 🟢 Facile |
 | Hosting CV | Drive/Dropbox (URL externe) | Supabase Storage, S3, R2 | 🟡 Moyen |
-| Scheduling | Calendly | Cal.com, Doodle, none | 🟢 Facile |
-| LinkedIn scraping | Apify | Manual / none | 🟢 Facile (skip) |
-| Notifications | ntfy | Slack, Discord webhook, Telegram | 🟢 Facile |
+| Scheduling | URL générique (Calendly, Cal.com…) | Tout provider | 🟢 Facile |
+| LinkedIn scraping | Apify (opt-in via APIFY_API_KEY) | ProxyCurl, manual/none | 🟢 Facile (skip) |
+| Notifications | Dashboard /notifications | ntfy, Slack, Discord (opt-in) | 🟢 Facile |
 
 ## Form builder
 
@@ -129,60 +129,83 @@ Idem que Supabase Storage mais avec ton fournisseur. Utilise `@aws-sdk/client-s3
 
 Tant que tu fais confiance aux candidats pour fournir un PDF accessible, c'est OK. Le worker rejette les URLs qui ne retournent pas `application/pdf`.
 
-## Scheduling
+## Scheduling — lien de réservation générique
 
-### Calendly → Cal.com
+Depuis la Phase 4, il n'y a plus d'intégration API Calendly. Le champ `lien_reservation_url` sur chaque poste accueille **n'importe quelle URL de réservation**.
 
-Cal.com est open-source, équivalent fonctionnel. Modifier `apps/jobs/src/lib/calendly-from-api.ts` pour utiliser l'API Cal.com :
+### URLs supportées
 
-```typescript
-// API Cal.com : POST /api/v1/event-types/{id}/scheduling-link
-const r = await fetch(`https://api.cal.com/v1/event-types/${eventTypeId}/scheduling-link?apiKey=${CAL_API_KEY}`, ...);
-```
+- **Calendly** : `https://calendly.com/votre-username/30min`
+- **Cal.com** : `https://cal.com/votre-username/entretien`
+- **Notion** : une page Notion publique avec un formulaire
+- **Google Forms** : `https://forms.gle/...`
+- **Autre** : n'importe quelle URL — elle est insérée telle quelle dans les emails, avec `?name=Prénom&email=email@candidat.fr` ajouté automatiquement (accepté par la plupart des providers, ignoré par les autres).
 
-### Désactiver scheduling
+### Configurer dans le dashboard
 
-Dans `email.ts`, si `[LIEN_CALENDLY]` n'est pas remplacé, le worker continue. Le candidat reçoit un email sans lien — ajoute "merci de répondre à ce mail pour proposer un créneau" dans le prompt.
+Ouvre un poste → champ **"Lien de réservation entretien"** → colle l'URL.
 
-## LinkedIn scraping
+### Désactiver le scheduling
 
-### Garder Apify
+Laisse le champ vide. Le placeholder `[LIEN_CALENDLY]` doit alors être **absent** du template email pour que l'envoi réussisse. Adapte le prompt de génération d'email pour demander "merci de répondre à ce mail pour proposer un créneau".
 
-Coûte ~0.01€ par profil scrappé. Utile pour enrichir les candidatures.
+## LinkedIn scraping — Apify (optionnel)
 
-### Désactiver
+Par défaut, **Apify n'est pas activé**. Le worker score les candidats avec le CV + les réponses formulaire seulement — les tests ont montré une qualité équivalente sans LinkedIn.
 
-```env
-APIFY_API_KEY=
-```
+### Activer l'enrichissement LinkedIn
 
-Vide → `scrapeLinkedin()` retourne null → `linkedin_data` reste vide en BD. Le scoring fonctionne avec juste CV + réponses formulaire.
+1. Crée un compte sur [apify.com](https://apify.com)
+2. Génère une clé API dans Apify → Settings → Integrations
+3. Configure dans ton `.env` (ou Coolify/Railway) :
+   ```env
+   APIFY_API_KEY=apify_api_xxxxxxxx
+   ```
+4. Redémarre le worker. Les prochaines candidatures avec un `linkedin_url` verront leur profil scrappé automatiquement.
+
+**Coût estimé :** ~0.05€ par candidature (acteur `dev_fusion~Linkedin-Profile-Scraper`).
+
+Si la clé n'est pas définie, `linkedin_data` reste vide en BD et le scoring fonctionne normalement.
 
 ### Alternative : ProxyCurl
 
 Plus cher mais API stable et meilleure qualité de data. Modifier `apps/jobs/src/services/linkedin.ts`.
 
-## Notifications
+## Notifications — dashboard inbox + push externe (optionnel)
 
-### ntfy par défaut
+Depuis la Phase 4, **toutes les alertes worker sont stockées en base de données** et visibles dans le dashboard à `/notifications`. Un badge dans le header indique les alertes non-lues.
 
-Gratuit, pas de compte. Choisis un topic unguessable (8+ chars random).
+### Dashboard inbox (par défaut, aucune config requise)
 
-### Slack
+- Défaillances de job → apparaissent en rouge dans `/notifications`
+- Heartbeat horaire → visible dans `/notifications`
+- Click sur une alerte → marque comme lue + affiche le contexte JSON
+
+### Push externe — ntfy (optionnel)
+
+Pour recevoir une notification push **en plus** du dashboard :
+
+```env
+NTFY_TOPIC=mon-topic-unguessable-abc123
+```
+
+Gratuit, pas de compte. Choisis un topic unguessable (8+ chars random). App mobile [ntfy.sh](https://ntfy.sh) disponible sur iOS/Android.
+
+### Push externe — Slack (optionnel)
 
 ```env
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T.../B.../...
 ```
 
-Override ntfy. Crée le webhook dans Slack → Apps → Incoming Webhooks.
+Override ntfy si les deux sont définis. Crée le webhook dans Slack → Apps → Incoming Webhooks.
 
-### Discord
+### Push externe — Discord (recette)
 
-Pas supporté nativement. Discord webhooks attendent un format différent (`{ content: "..." }`). Modifie `apps/jobs/src/services/notifier.ts` :
+Discord webhooks attendent `{ content: "..." }`. Modifie `apps/jobs/src/services/notifier.ts`, fonction `postExternal` :
 
 ```typescript
-async function postDiscord(message: string) {
-  await fetch(process.env.DISCORD_WEBHOOK_URL!, {
+if (process.env.DISCORD_WEBHOOK_URL?.trim()) {
+  await fetch(process.env.DISCORD_WEBHOOK_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content: message }),
@@ -190,7 +213,7 @@ async function postDiscord(message: string) {
 }
 ```
 
-### Telegram
+### Push externe — Telegram
 
 Bot Telegram + chat_id. ~10 lignes de code, voir [docs Telegram bot API](https://core.telegram.org/bots/api).
 
