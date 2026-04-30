@@ -74,6 +74,7 @@ export const communications = pgTable("communications", {
   statut: text("statut").notNull().default("brouillon"),
   calendly_link: text("calendly_link"),
   envoye_at: timestamp("envoye_at", { mode: "string" }),
+  marque_envoye_at: timestamp("marque_envoye_at", { mode: "string" }),
   created_at: timestamp("created_at", { mode: "string" }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { mode: "string" }).notNull().defaultNow(),
 }, (t) => ({

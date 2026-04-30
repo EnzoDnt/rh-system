@@ -19,7 +19,7 @@ export const CommunicationTypeSchema = z.enum([
 export type CommunicationType = z.infer<typeof CommunicationTypeSchema>;
 
 export const CommunicationStatutSchema = z.enum([
-  "brouillon", "valide", "envoye", "erreur",
+  "brouillon", "valide", "envoye", "erreur", "marque_envoye",
 ]);
 export type CommunicationStatut = z.infer<typeof CommunicationStatutSchema>;
 

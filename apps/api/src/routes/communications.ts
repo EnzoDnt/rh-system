@@ -65,4 +65,14 @@ export const communicationsRouter = new Hono()
     if (!updated) throw Errors.notFound("Communication en brouillon");
     const job = await enqueueCommunication(id);
     return c.json({ communication_id: id, statut: updated.statut, job_id: job.id }, 202);
+  })
+
+  .post("/:id/mark-sent", async (c) => {
+    const id = c.req.param("id");
+    const [updated] = await db.update(communications)
+      .set({ statut: "marque_envoye", marque_envoye_at: new Date().toISOString() })
+      .where(and(eq(communications.id, id), eq(communications.statut, "brouillon")))
+      .returning();
+    if (!updated) throw Errors.conflict("Communication n'est pas en brouillon");
+    return c.json(updated);
   });
