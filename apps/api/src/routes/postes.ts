@@ -1,9 +1,9 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { zv } from "../lib/zv.js";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import { getDb, postes, candidatures, scores } from "@rh/db";
-import { CriteresScoringSchema, PosteStatutSchema, STANDARD_QUESTIONS } from "@rh/types";
+import { CriteresScoringSchema, PosteStatutSchema, QuestionsArraySchema, STANDARD_QUESTIONS } from "@rh/types";
 import { Errors } from "../lib/http.js";
 import { runFormulairePrompt } from "../services/claude.js";
 
@@ -25,6 +25,7 @@ const PatchBody = z.object({
   lien_reservation_url: z.string().nullable().optional(),
   fiche_html: z.string().optional(),
   fiche_brief: z.string().optional(),
+  questions_json: QuestionsArraySchema.optional(),
 });
 
 export const postesRouter = new Hono()
@@ -64,7 +65,7 @@ export const postesRouter = new Hono()
   })
 
   // POST /api/postes
-  .post("/", zValidator("json", CreateBody), async (c) => {
+  .post("/", zv("json", CreateBody), async (c) => {
     const body = c.req.valid("json");
     const [row] = await db.insert(postes).values({
       titre: body.titre,
@@ -77,7 +78,7 @@ export const postesRouter = new Hono()
   })
 
   // PATCH /api/postes/:id
-  .patch("/:id", zValidator("json", PatchBody), async (c) => {
+  .patch("/:id", zv("json", PatchBody), async (c) => {
     const id = c.req.param("id");
     const body = c.req.valid("json");
     const [updated] = await db.update(postes).set(body).where(eq(postes.id, id)).returning();

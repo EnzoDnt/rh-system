@@ -74,4 +74,36 @@ describe("PATCH /api/postes/:id", () => {
     expect(body.titre).toBe("TEST_Original");
     expect(body.statut).toBe("ferme");
   });
+
+  it("persists questions_json when provided as a valid array", async () => {
+    const p = await makePoste({ titre: "TEST_Patch_Questions" });
+    const newQuestions = [
+      { id: "nom", type: "text", label: "Nom", required: true },
+      { id: "experience", type: "long_text", label: "Décris ton expérience", required: true, help_text: "Détaille tes années" },
+      { id: "stack", type: "select", label: "Stack favorite", required: true, options: ["React", "Vue", "Svelte"] },
+    ];
+    const res = await app.request(`/api/postes/${p.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ questions_json: newQuestions }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.questions_json).toEqual(newQuestions);
+  });
+
+  it("rejects malformed questions_json (empty id) with 400 + Zod issues", async () => {
+    const p = await makePoste({ titre: "TEST_Patch_Invalid" });
+    const res = await app.request(`/api/postes/${p.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ questions_json: [{ id: "", type: "text", label: "X", required: true }] }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    // canonical error shape via zv helper + errorMiddleware
+    expect(body.error).toBeTruthy();
+    expect(body.code).toBe("BAD_REQUEST");
+    expect(Array.isArray(body.issues)).toBe(true);
+  });
 });
