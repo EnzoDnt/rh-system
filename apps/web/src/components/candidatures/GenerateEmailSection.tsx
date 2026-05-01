@@ -4,8 +4,14 @@ import { Button } from "@/components/ui/button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.js";
 import { useGenerateEmail, useCreateCommunication } from "@/lib/mutations.js";
 
+type EmailType = "invitation" | "refus" | "relance" | "accuse_reception";
+
+function defaultEmailType(reco: string | null | undefined): EmailType {
+  return reco === "refuser" ? "refus" : "invitation";
+}
+
 export function GenerateEmailSection({ cand }: { cand: any }) {
-  const [type, setType] = useState<"invitation" | "refus" | "relance" | "accuse_reception">("invitation");
+  const [type, setType] = useState<EmailType>(defaultEmailType(cand.recommandation));
   const gen = useGenerateEmail();
   const create = useCreateCommunication();
 
