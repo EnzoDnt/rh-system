@@ -5,10 +5,16 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        # Coolify injects these from Build Variables (set in the UI)
+        # Coolify/Railway inject these from Build Variables (set in the UI).
+        # All VITE_* are inlined into the bundle at build time, so anything
+        # the frontend reads from import.meta.env must be passed here.
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
         VITE_API_URL: ${VITE_API_URL}
+        VITE_BRAND_NAME: ${VITE_BRAND_NAME}
+        VITE_BRAND_PRIMARY_COLOR: ${VITE_BRAND_PRIMARY_COLOR}
+        VITE_BRAND_PRIMARY_COLOR_HOVER: ${VITE_BRAND_PRIMARY_COLOR_HOVER}
+        VITE_BRAND_LOGO_URL: ${VITE_BRAND_LOGO_URL}
     restart: unless-stopped
     # Coolify routes rh.your-domain.example → this container's port 80 via Traefik.
     # No `ports:` key — Coolify's strict validator rejects `ports: []`, and
