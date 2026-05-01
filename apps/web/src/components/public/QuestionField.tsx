@@ -150,30 +150,71 @@ function FileUpload({
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       {value ? (
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-green-700">Fichier uploadé</span>
+        <div className="flex items-center justify-between gap-3 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm">
+          <div className="flex items-center gap-2 min-w-0">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-green-700 shrink-0"
+              aria-hidden="true"
+            >
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+            <span className="text-green-700 truncate">Fichier téléversé</span>
+          </div>
           <button
             type="button"
-            className="text-xs underline"
+            className="text-xs underline text-text-muted hover:text-text shrink-0"
             onClick={() => onChange(null)}
           >
             Changer
           </button>
         </div>
       ) : (
-        <input
-          id={id}
-          type="file"
-          accept="application/pdf"
-          onChange={handleFile}
-          required={required}
-          disabled={uploading}
-        />
+        <label
+          htmlFor={id}
+          className={`flex flex-col items-center justify-center gap-2 rounded-md border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-6 text-sm text-text-muted hover:border-[var(--color-primary)] hover:text-text transition-colors ${uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+        >
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          <span>
+            <strong className="font-medium">Cliquez pour téléverser</strong> un fichier PDF
+          </span>
+          <span className="text-xs">5 MB maximum</span>
+          <input
+            id={id}
+            type="file"
+            accept="application/pdf"
+            onChange={handleFile}
+            required={required}
+            disabled={uploading}
+            className="sr-only"
+          />
+        </label>
       )}
       {uploading && (
-        <p className="text-xs text-text-muted">Upload en cours…</p>
+        <p className="text-xs text-text-muted">Téléversement en cours…</p>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
