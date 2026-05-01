@@ -25,7 +25,18 @@ export async function api<T = unknown>(
   if (!res.ok) {
     if (contentType.includes("application/json")) {
       const body = await res.json().catch(() => ({} as any));
-      throw new ApiError(res.status, body.error ?? `HTTP ${res.status}`, body.code, body.issues);
+      // Canonical shape: { error: string, code?: string, issues?: any }
+      // Defensive shape: zValidator (default) returns { success: false, error: { issues: [...] } }
+      // → flatten the nested issues so the toast never ends up as "[object Object]".
+      const issues = body.issues ?? body.error?.issues;
+      let message: string = typeof body.error === "string" ? body.error : `HTTP ${res.status}`;
+      if (Array.isArray(issues) && issues.length > 0) {
+        const detail = issues
+          .map((i: any) => `${(i.path ?? []).join(".") || "(root)"} — ${i.message}`)
+          .join("; ");
+        message = `Validation échouée : ${detail}`;
+      }
+      throw new ApiError(res.status, message, body.code, issues);
     }
     throw new ApiError(res.status, `HTTP ${res.status}`);
   }

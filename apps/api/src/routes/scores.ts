@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { zv } from "../lib/zv.js";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { getDb, scores } from "@rh/db";
@@ -16,7 +16,7 @@ const PatchBody = z.object({
 });
 
 export const scoresRouter = new Hono()
-  .patch("/:candidature_id/score", zValidator("json", PatchBody), async (c) => {
+  .patch("/:candidature_id/score", zv("json", PatchBody), async (c) => {
     const candidature_id = c.req.param("candidature_id");
     const body = c.req.valid("json");
     const [existing] = await db.select({ id: scores.id }).from(scores).where(eq(scores.candidature_id, candidature_id));

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { zv } from "../lib/zv.js";
 import { z } from "zod";
 import { CriteresScoringSchema, RecommandationSchema, CommunicationTypeSchema } from "@rh/types";
 import {
@@ -43,12 +43,12 @@ const GenFicheBody = z.object({
 
 export const aiRouter = new Hono()
 
-  .post("/generate-criteres", zValidator("json", GenCriteresBody), async (c) => {
+  .post("/generate-criteres", zv("json", GenCriteresBody), async (c) => {
     const out = await runCriteresPrompt(c.req.valid("json"));
     return c.json(out);
   })
 
-  .post("/generate-email", zValidator("json", GenEmailBody), async (c) => {
+  .post("/generate-email", zv("json", GenEmailBody), async (c) => {
     const body = c.req.valid("json");
     const emailType = body.type_email === "accuse_reception" ? "invitation" : body.type_email;
     const out = await runEmailPrompt({
@@ -63,7 +63,7 @@ export const aiRouter = new Hono()
     return c.json(out);
   })
 
-  .post("/regenerate-email", zValidator("json", RegenEmailBody), async (c) => {
+  .post("/regenerate-email", zv("json", RegenEmailBody), async (c) => {
     const body = c.req.valid("json");
     const emailType = determineEmailType(body.recommandation);
     const out = await runEmailPrompt({
@@ -79,7 +79,7 @@ export const aiRouter = new Hono()
     return c.json({ type: emailType, ...out });
   })
 
-  .post("/generate-fiche-poste", zValidator("json", GenFicheBody), async (c) => {
+  .post("/generate-fiche-poste", zv("json", GenFicheBody), async (c) => {
     const html = await runFichePostePrompt(c.req.valid("json"));
     return c.text(html, 200, { "content-type": "text/html; charset=utf-8" });
   });

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { zv } from "../lib/zv.js";
 import { z } from "zod";
 import { eq, sql, desc, and } from "drizzle-orm";
 import { getDb, prompts, promptsHistory } from "@rh/db";
@@ -36,7 +36,7 @@ export const promptsRouter = new Hono()
     return c.json({ ...p, history });
   })
 
-  .patch("/:id", zValidator("json", PatchBody), async (c) => {
+  .patch("/:id", zv("json", PatchBody), async (c) => {
     const id = c.req.param("id");
     const body = c.req.valid("json");
     return await db.transaction(async (tx) => {
@@ -57,7 +57,7 @@ export const promptsRouter = new Hono()
     });
   })
 
-  .post("/:id/restore", zValidator("json", RestoreBody), async (c) => {
+  .post("/:id/restore", zv("json", RestoreBody), async (c) => {
     const id = c.req.param("id");
     const { history_id } = c.req.valid("json");
     return await db.transaction(async (tx) => {

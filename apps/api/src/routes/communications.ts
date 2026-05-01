@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { zv } from "../lib/zv.js";
 import { z } from "zod";
 import { eq, and, sql } from "drizzle-orm";
 import { getDb, communications, candidatures } from "@rh/db";
@@ -23,7 +23,7 @@ const PatchBody = z.object({
 
 export const communicationsRouter = new Hono()
 
-  .get("/", zValidator("query", ListQuery), async (c) => {
+  .get("/", zv("query", ListQuery), async (c) => {
     const { statut } = c.req.valid("query");
     const rows = await db.execute<any>(sql`
       SELECT co.id, co.candidature_id, ca.nom AS candidat_nom, ca.email AS candidat_email,
@@ -38,7 +38,7 @@ export const communicationsRouter = new Hono()
     return c.json(Array.from(rows));
   })
 
-  .post("/", zValidator("json", CreateBody), async (c) => {
+  .post("/", zv("json", CreateBody), async (c) => {
     const body = c.req.valid("json");
     const [exists] = await db.select({ id: candidatures.id }).from(candidatures).where(eq(candidatures.id, body.candidature_id));
     if (!exists) throw Errors.notFound("Candidature");
@@ -46,7 +46,7 @@ export const communicationsRouter = new Hono()
     return c.json(row, 201);
   })
 
-  .patch("/:id", zValidator("json", PatchBody), async (c) => {
+  .patch("/:id", zv("json", PatchBody), async (c) => {
     const id = c.req.param("id");
     const [comm] = await db.select().from(communications).where(eq(communications.id, id));
     if (!comm) throw Errors.notFound("Communication");

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { zv } from "../lib/zv.js";
 import { z } from "zod";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { getDb, candidatures, scores, communications } from "@rh/db";
@@ -30,7 +30,7 @@ const NotesBody = z.object({ notes_rh: z.string() });
 
 export const candidaturesRouter = new Hono()
 
-  .get("/", zValidator("query", ListQuery), async (c) => {
+  .get("/", zv("query", ListQuery), async (c) => {
     const { poste_id, statut } = c.req.valid("query");
     const rows = await db.execute<any>(sql`
       SELECT c.id, c.poste_id, p.titre AS poste_titre, c.nom, c.email, c.telephone,
@@ -67,7 +67,7 @@ export const candidaturesRouter = new Hono()
     return c.json({ ...cand, communications: comms });
   })
 
-  .patch("/:id", zValidator("json", PatchBody), async (c) => {
+  .patch("/:id", zv("json", PatchBody), async (c) => {
     const id = c.req.param("id");
     const body = c.req.valid("json");
     const [updated] = await db.update(candidatures).set(body).where(eq(candidatures.id, id)).returning();
@@ -75,7 +75,7 @@ export const candidaturesRouter = new Hono()
     return c.json(updated);
   })
 
-  .patch("/:id/statut", zValidator("json", StatutBody), async (c) => {
+  .patch("/:id/statut", zv("json", StatutBody), async (c) => {
     const id = c.req.param("id");
     const { statut } = c.req.valid("json");
     const [updated] = await db.update(candidatures).set({ statut }).where(eq(candidatures.id, id))
@@ -84,7 +84,7 @@ export const candidaturesRouter = new Hono()
     return c.json(updated);
   })
 
-  .patch("/:id/notes", zValidator("json", NotesBody), async (c) => {
+  .patch("/:id/notes", zv("json", NotesBody), async (c) => {
     const id = c.req.param("id");
     const { notes_rh } = c.req.valid("json");
     const [updated] = await db.update(candidatures).set({ notes_rh }).where(eq(candidatures.id, id))
