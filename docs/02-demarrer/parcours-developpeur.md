@@ -72,3 +72,20 @@ The API gates `enqueue*()` calls on the database connection. Without a worker
 running, jobs queue up — useful for developing the API surface alone.
 
 Stop with Ctrl-C; pg-boss exits gracefully (logs `→ SIGINT — stopping pg-boss…`).
+
+### Worker boot fails with `ANTHROPIC_API_KEY: String must contain at least 1 character(s)`
+
+`tsx --env-file` (et `node --env-file`) **n'écrasent pas** une variable déjà
+exportée dans le shell. Dans une session Claude Code, `ANTHROPIC_API_KEY` est
+exportée vide pour les processus enfants — ce qui prend le pas sur la valeur du
+`.env` et fait crasher le worker au boot.
+
+Workaround : démarrer le worker en unsetting cette variable avant l'exec :
+
+    env -u ANTHROPIC_API_KEY pnpm --filter @rh/jobs dev
+
+Ou dans un shell interactif normal, vérifier que la var n'est pas déjà set :
+
+    echo "[$ANTHROPIC_API_KEY]"   # doit être [] ou afficher la vraie clé
+
+Si le shell affiche `[]`, faire `unset ANTHROPIC_API_KEY` avant le `pnpm dev`.
