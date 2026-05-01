@@ -1,9 +1,9 @@
 # Checklist de personnalisation — pour l'agent IA
 
-> **Pour l'agent qui pilote l'onboarding.** Ce document liste les **18 questions** que tu dois poser à l'utilisateur, dans l'ordre, pendant la phase de setup. Chaque question a une valeur par défaut. L'utilisateur répond soit `garder` (par défaut) soit `personnaliser` (et fournit la nouvelle valeur).
+> **Pour l'agent qui pilote l'onboarding.** Ce document liste les questions que tu dois poser à l'utilisateur, dans l'ordre, pendant la phase de setup. Chaque question a une valeur par défaut. L'utilisateur répond soit `garder` (par défaut) soit `personnaliser` (et fournit la nouvelle valeur).
 >
 > **Comportement attendu** :
-> - Pose les questions par groupes (5 groupes), pas une par une
+> - Pose les questions par groupes, pas une par une
 > - Pour chaque groupe, montre les valeurs par défaut, demande ce qu'il veut changer
 > - Une fois validé, applique tous les changements en parallèle
 > - Confirme à l'utilisateur ce qui a été modifié
@@ -12,33 +12,36 @@
 
 ## Groupe 1 — Identité de marque (3 questions)
 
-| # | Question | Default | Où c'est utilisé |
-|---|---|---|---|
-| 1.1 | **Nom de l'app** affiché dans le header et le titre du navigateur | `Recrutement` | `apps/web/index.html` (`<title>`), `apps/web/src/components/layout/Header.tsx`, `apps/web/src/routes/login.tsx` |
-| 1.2 | **Nom expéditeur des emails** | `L'équipe Recrutement` | `apps/jobs/src/services/email.ts` (default) + var `RESEND_FROM` |
-| 1.3 | **Domaine de tes emails** (ex: `acme.com` → from `recrutement@acme.com`) | `your-domain.example` | Variable `RESEND_FROM` |
+Tout passe par des **variables d'environnement**. Aucune édition de code requise.
 
-**Action si personnalisation** :
-- Remplace `Recrutement` par `<nouveau-nom>` dans les 3 fichiers Web
-- Génère le `RESEND_FROM=L'équipe <NewName> <recrutement@<domaine>>` dans `.env`
+| # | Question | Default | Variable .env |
+|---|---|---|---|
+| 1.1 | **Nom de la marque** affiché dans le header, la page login, le titre du navigateur, et substitué dans les prompts IA | `Recrutement` | `BRAND_NAME` (backend) + `VITE_BRAND_NAME` (frontend) |
+| 1.2 | **Adresse expéditeur des emails** (format `Nom Affiché <email@domaine>`) | `L'équipe Recrutement <recrutement@your-domain.example>` | `BRAND_FROM_EMAIL` |
+| 1.3 | **URL d'un logo** (SVG ou PNG hébergé quelque part — affiché dans le header et page login) | Aucun (texte du nom seul) | `VITE_BRAND_LOGO_URL` |
+
+**Action si personnalisation** : ajoute les valeurs dans `.env` (et dans les vars de l'hébergeur au déploiement).
+
+> ⚠️ Pour `VITE_BRAND_PRIMARY_COLOR`, **quote** la valeur dans le fichier `.env` (`"#1f6feb"`) sinon dotenv interprète le `#` comme un commentaire. Sur les UI Railway/Coolify, pas besoin de quotes.
 
 ---
 
-## Groupe 2 — Apparence visuelle (3 questions)
+## Groupe 2 — Apparence visuelle (2 questions)
 
-| # | Question | Default | Où c'est utilisé |
+| # | Question | Default | Variable .env |
 |---|---|---|---|
-| 2.1 | **Couleur principale** (boutons, badges, accents) | `#5C3A1E` (marron) | `apps/web/src/styles/globals.css` → `--color-primary` |
-| 2.2 | **Couleur de hover** sur la couleur principale | `#4a2f18` | `--color-primary-hover` |
-| 2.3 | **Logo personnalisé** (chemin vers fichier SVG/PNG) | Aucun (texte seul) | À ajouter dans `apps/web/public/logo.svg` + import dans `Header.tsx` et `login.tsx` |
+| 2.1 | **Couleur principale** (hex CSS) | `#c4841d` (ambre) | `VITE_BRAND_PRIMARY_COLOR` |
+| 2.2 | **Couleur de hover** (hex CSS) | `#a06b15` | `VITE_BRAND_PRIMARY_COLOR_HOVER` |
 
-**Conseil agent** : si l'utilisateur fournit une couleur, calcule automatiquement le hover en assombrissant de ~10%.
+**Conseil agent** : si l'utilisateur fournit la couleur primaire seule, calcule automatiquement le hover en assombrissant de ~10% et propose-la-lui.
+
+Doc complète : [04-personnaliser/branding.md](../04-personnaliser/branding.md).
 
 ---
 
 ## Groupe 3 — Prompts IA (3 questions)
 
-Le système utilise 6 prompts Claude éditables depuis `/prompts`. Tu peux soit utiliser les prompts génériques par défaut, soit charger un template spécialisé.
+Le système utilise 6 prompts Claude éditables depuis `/prompts` (interface web) ou seedés depuis `packages/db/scripts/prompts/*.txt`.
 
 | # | Question | Options |
 |---|---|---|
@@ -47,53 +50,60 @@ Le système utilise 6 prompts Claude éditables depuis `/prompts`. Tu peux soit 
 | 3.3 | **Niveau d'exigence du scoring** | `equilibre` (défaut, 75=retenir, 50=a_voir) / `strict` (85/60) / `inclusif` (65/40) |
 
 **Action si personnalisation** :
-- Si `industrie != generique` : modifier `packages/db/scripts/seed-prompts.ts` ou les fichiers `.txt` dans `packages/db/scripts/prompts/` pour préfixer chaque prompt avec un glossaire de l'industrie (voir `docs/04-personnaliser/criteres-scoring.md` pour les exemples)
+- Si `industrie != generique` : modifier les fichiers `.txt` dans `packages/db/scripts/prompts/` pour préfixer chaque prompt avec un glossaire de l'industrie (voir `docs/04-personnaliser/criteres-scoring.md` pour les exemples)
 - Si `ton != professionnel` : ajouter une instruction de ton dans `packages/db/scripts/prompts/generation_email.txt`
 - Si `niveau != equilibre` : modifier les seuils dans `packages/db/scripts/prompts/scoring_candidat.txt`
 
-⚠️ **Important** : ces fichiers sont seedés en BD au premier `pnpm db:seed`. Si l'utilisateur change la BD plus tard via le dashboard `/prompts`, ces modifications de fichiers sont sans effet sur les prompts existants.
+⚠️ **Important** : ces fichiers sont seedés en BD au premier `pnpm db:seed`. Si l'utilisateur change la BD plus tard via le dashboard `/prompts`, ces modifications de fichiers sont sans effet sur les prompts existants. Le placeholder `<Votre Marque>` dans les prompts est substitué automatiquement à `BRAND_NAME` au runtime côté worker.
 
 ---
 
-## Groupe 4 — Intégrations tierces (5 questions)
+## Groupe 4 — Intégrations tierces (3 questions)
 
 Pour chaque intégration, demande si l'utilisateur veut l'utiliser ou la désactiver.
 
 | # | Question | Default | Action si "non" |
 |---|---|---|---|
-| 4.1 | **Resend** pour l'envoi d'emails | Oui | Documenter qu'il faudra coder un autre provider (Postmark/Mailgun/SES) — voir `docs/04-personnaliser/integrations.md`. Pour le moment, mettre `RESEND_API_KEY=` vide. |
-| 4.2 | **Calendly** pour les liens d'entretien automatiques | Oui (si fourni) | Si non : `CALENDLY_TOKEN=` vide. Les emails partiront sans lien Calendly. Recommander d'éditer le prompt email pour proposer la prise de RDV manuelle. |
-| 4.3 | **Apify** pour scraper LinkedIn des candidats | Non (par défaut) | `APIFY_API_KEY=` vide. Le scoring ne tiendra compte que du CV + réponses formulaire. |
-| 4.4 | **ntfy ou Slack** pour les alertes worker | ntfy.sh (gratuit) | Si Slack : demander le `SLACK_WEBHOOK_URL`. Si rien : pas d'alerte temps réel sur les jobs en échec. |
-| 4.5 | **Formbricks self-hosted ou cloud** | Cloud (https://app.formbricks.com) | Si self-host : demander `FORMBRICKS_BASE_URL`, expliquer qu'il faut le déployer séparément (voir doc Formbricks). |
+| 4.1 | **Resend** pour l'envoi d'emails automatique | Non (mailto: par défaut) | Si non : `RESEND_API_KEY=` vide. Le dashboard offrira "Ouvrir dans mon mail" + "Marquer comme envoyé" au lieu de "Envoyer via Resend". |
+| 4.2 | **Apify** pour scraper LinkedIn des candidats | Non | `APIFY_API_KEY=` vide. Le scoring ne tiendra compte que du CV + réponses formulaire. |
+| 4.3 | **ntfy ou Slack** pour push notifs externes | Non (dashboard `/notifications` suffit) | Si oui : demander `NTFY_TOPIC` ou `SLACK_WEBHOOK_URL`. Sinon : les notifs restent uniquement en BD (visibles via la cloche du dashboard). |
+
+> Le formulaire candidat est **intégré nativement** au repo (pas d'outil externe type Formbricks/Tally/Typeform à configurer). La page publique `/postuler/<slug>` est servie par le frontend `web` et soumet à `POST /api/public/applications/<slug>`.
 
 ---
 
-## Groupe 5 — Déploiement (3 questions)
+## Groupe 5 — Déploiement (2 questions)
 
 | # | Question | Options | Lien doc |
 |---|---|---|---|
-| 5.1 | **Où déployer ?** | `local` (dev seul) / `railway` (le plus simple) / `vercel-railway-supabase` (meilleure perf) / `coolify-vps` (le moins cher) / `self-hosted-docker` (DIY) | `docs/03-deployer/matrice-de-choix.md` |
-| 5.2 | **Domaine custom** | Aucun (sous-domaines auto-générés du fournisseur) | Si oui : demander le domaine racine, l'agent configure les 3 sous-domaines (`rh.`, `api.`, `fiches.`) selon le fournisseur |
-| 5.3 | **Configurer DKIM/SPF Resend maintenant** | Oui (recommandé pour ne pas atterrir en spam) | L'agent affiche les 3 records DNS Resend et attend confirmation de la propagation |
+| 5.1 | **Où déployer ?** | `local` (dev seul) / `railway` (le plus simple) / `coolify` (VPS perso) / `vercel-fly` (perf web max) / `docker` (DIY) | [03-deployer/matrice-de-choix.md](../03-deployer/matrice-de-choix.md) |
+| 5.2 | **Domaine custom** | Aucun (sous-domaines auto-générés du fournisseur) | Si oui : demander le domaine racine, l'agent configure les 2 sous-domaines (`rh.` pour le web, `api.` pour l'API) côté DNS + côté hébergeur |
+
+Recipes par hébergeur :
+- Railway → [03-deployer/host-railway.md](../03-deployer/host-railway.md)
+- Coolify → [03-deployer/host-coolify.md](../03-deployer/host-coolify.md)
+- Vercel + Fly / Docker → [03-deployer/host-generic.md](../03-deployer/host-generic.md)
 
 ---
 
-## Groupe 6 — Comptes externes (1 question, mais l'agent doit collecter beaucoup)
+## Groupe 6 — Comptes externes & credentials
 
-| # | Question | À collecter |
-|---|---|---|
-| 6.1 | **Tu as déjà tes comptes ?** | Oui : l'agent demande les credentials un par un (voir liste). Non : l'agent ouvre les liens d'inscription dans l'ordre, attend la confirmation. |
+L'agent doit collecter ces valeurs auprès de l'utilisateur (cf. [03-deployer/cloud-setup.md](../03-deployer/cloud-setup.md) pour les détails).
 
-**Credentials à collecter** :
-- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`
-- `ANTHROPIC_API_KEY`
-- `RESEND_API_KEY` (si Groupe 4 dit oui)
-- `FORMBRICKS_API_KEY`, `FORMBRICKS_ENVIRONMENT_ID` (si Groupe 4 dit oui)
-- `FORMBRICKS_WEBHOOK_SECRET` (générer avec `openssl rand -hex 32`)
-- `CALENDLY_TOKEN` (optionnel)
-- `APIFY_API_KEY` (optionnel)
-- `NTFY_TOPIC` ou `SLACK_WEBHOOK_URL` (selon choix Groupe 4)
+**Obligatoires** :
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` — depuis le dashboard Supabase Cloud (Settings → API + Settings → Database)
+- `ANTHROPIC_API_KEY` — depuis console.anthropic.com (carte de paiement requise)
+
+**Optionnelles selon Groupe 4** :
+- `RESEND_API_KEY` (si 4.1 oui)
+- `APIFY_API_KEY` (si 4.2 oui)
+- `NTFY_TOPIC` ou `SLACK_WEBHOOK_URL` (si 4.3 oui)
+
+**Frontend** (à dupliquer dans les build vars de l'hébergeur web) :
+- `VITE_SUPABASE_URL` = `SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY` = `SUPABASE_ANON_KEY`
+- `VITE_API_URL` = `PUBLIC_API_URL`
+- `VITE_BRAND_*` (si Groupes 1–2 personnalisés)
 
 ⚠️ **Sécurité** : ne jamais afficher les credentials dans la conversation après les avoir reçus. Utiliser des `<REDACTED>` quand on les mentionne.
 
@@ -104,7 +114,7 @@ Pour chaque intégration, demande si l'utilisateur veut l'utiliser ou la désact
 ```
 1. Saluer l'utilisateur, expliquer en 2 phrases ce qu'on va faire
 2. Lire docs/01-comprendre/vue-d-ensemble.md pour avoir le contexte
-3. Demander : "Tu veux personnaliser quoi ? Tu veux qu'on traverse les 5 groupes
+3. Demander : "Tu veux personnaliser quoi ? Tu veux qu'on traverse les groupes
    de questions, ou tu préfères que je garde tout par défaut et on passe direct
    au déploiement ?"
 4. Selon réponse :
@@ -116,7 +126,7 @@ Pour chaque intégration, demande si l'utilisateur veut l'utiliser ou la désact
    - Pour chaque élément à changer, demander la nouvelle valeur
 6. Une fois tous les groupes traversés, faire un récap et confirmer
 7. Appliquer tous les changements (édits de fichiers + .env)
-8. Lancer pnpm install + pnpm typecheck pour valider
+8. Lancer pnpm install + pnpm typecheck + pnpm test pour valider
 9. Procéder au déploiement selon le choix Groupe 5
 10. Donner les URLs finales à l'utilisateur
 ```
@@ -125,13 +135,14 @@ Pour chaque intégration, demande si l'utilisateur veut l'utiliser ou la désact
 
 ## Checklist pour l'agent (avant de marquer "setup terminé")
 
-- [ ] Le fichier `.env` existe à la racine, et passe la validation Zod (`pnpm typecheck` ne crashe pas au démarrage de l'API)
+- [ ] Le fichier `.env` existe à la racine et passe la validation Zod (`pnpm typecheck` OK + l'API démarre sans crash)
 - [ ] `pnpm install` est passé sans erreur
-- [ ] Les migrations Supabase sont appliquées (3 fichiers SQL dans `packages/db/migrations/`)
+- [ ] Les migrations Supabase sont appliquées (tous les fichiers `packages/db/migrations/*.sql` dans l'ordre)
 - [ ] `pnpm --filter @rh/db seed` est passé (les 6 prompts sont en BD)
+- [ ] `pnpm test` passe (76 tests)
 - [ ] Si déploiement choisi : les 3 services tournent et répondent (curl `/api/health` → `{"ok":true}`)
-- [ ] Si Formbricks configuré : `FORMBRICKS_WEBHOOK_SECRET` est dans Coolify/Railway env ET dans l'URL du webhook côté Formbricks UI
-- [ ] L'utilisateur peut se logger via magic link sur l'URL web finale
+- [ ] L'utilisateur peut se logger sur l'URL web finale (magic link ou password)
+- [ ] L'utilisateur a créé un poste de test et la génération IA des questions a fonctionné
 
 ---
 
@@ -139,6 +150,6 @@ Pour chaque intégration, demande si l'utilisateur veut l'utiliser ou la désact
 
 Réponse rapide : zéro changement de code, on saute direct au Groupe 5 (déploiement) puis Groupe 6 (credentials). Setup en ~30 min total.
 
-L'utilisateur pourra toujours personnaliser plus tard via :
-- Le dashboard `/prompts` (édition des prompts en BD, sans redéploiement)
-- L'édition de fichiers TS/CSS (relancer ce setup avec une nouvelle convo agent)
+L'utilisateur pourra toujours personnaliser plus tard :
+- Via le dashboard `/prompts` (édition des prompts en BD, sans redéploiement)
+- En modifiant les vars `BRAND_*` côté hébergeur (redémarrage suffit pour le backend, rebuild pour le frontend)

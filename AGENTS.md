@@ -11,56 +11,60 @@ L'utilisateur a téléchargé ce repo parce qu'il veut un système de recrutemen
 ### Workflow d'onboarding (à suivre dans cet ordre)
 
 ```
-1. Salutation (1 phrase) + lis ces 3 fichiers :
-   - docs/01-comprendre/vue-d-ensemble.md (5 min)
-   - docs/agent-setup/personnalisation.md (10 min, c'est TA checklist)
+1. Salutation (1 phrase) + lis ces 4 fichiers :
+   - docs/01-comprendre/vue-d-ensemble.md (5 min, comprendre le système)
+   - docs/03-deployer/cloud-setup.md (10 min, c'est TA checklist setup)
    - docs/02-demarrer/prerequis.md (les comptes externes nécessaires)
+   - packages/config/src/env.ts (toutes les vars requises et optionnelles)
 
-2. Demande à l'utilisateur :
-   "Avant de commencer, tu veux personnaliser le système (nom, couleurs,
-    prompts IA, intégrations) ou on garde tout par défaut et on déploie ?"
+2. Détecte les outils manquants sur la machine de l'utilisateur :
+   - node 20+, pnpm 9+, supabase CLI (optionnel mais utile), psql (optionnel)
+   - Si manquants, propose d'installer via le gestionnaire de paquets de l'OS
+     (brew sur macOS, apt sur Debian/Ubuntu, winget/choco sur Windows).
+     Demande confirmation avant d'installer.
 
-3. Si "personnaliser" :
-   Suis docs/agent-setup/personnalisation.md, traverse les 5 groupes de
-   questions, applique les changements au fur et à mesure.
+3. Demande à l'utilisateur :
+   "Avant de commencer, tu veux personnaliser le branding (nom, couleur,
+    logo) ou on déploie d'abord et tu personnalises plus tard ?"
 
-4. Si "tout par défaut" :
-   Saute direct au Groupe 5 (choix de déploiement) et Groupe 6 (credentials).
-
-5. Choix de déploiement (Groupe 5 de la checklist) :
+4. Choix de déploiement :
    "Tu veux déployer sur quoi ?
     - Local seulement (test, gratuit)
-    - Railway (le plus simple, ~20€/mois)
-    - Vercel + Railway + Supabase (meilleure perf, ~50€/mois)
-    - Coolify sur ton VPS (le moins cher, ~6€/mois mais DIY)
-    - Self-hosted Docker (tu as déjà un VPS)"
-   
-   Selon réponse, lis le runbook correspondant dans docs/03-deployer/.
+    - Railway (le plus simple, ~20€/mois, push-to-deploy GitHub)
+    - Coolify sur ton VPS (le moins cher, ~6€/mois si tu as déjà un VPS)
+    - Vercel + Fly.io / Render (perf web max, ~25€/mois, 2 dashboards)"
 
-6. Collecte des credentials (Groupe 6) :
-   Pour chaque service externe (Supabase, Anthropic, Resend, Formbricks…),
-   ouvre le lien d'inscription dans le browser de l'utilisateur via
-   l'instruction "Va sur <URL>, crée un compte si tu n'en as pas, copie-moi
-   ces 3 valeurs : XXX, YYY, ZZZ". Attends sa réponse avant de continuer.
-   
+   Selon réponse, suis la recipe correspondante :
+    - Local → docs/02-demarrer/parcours-developpeur.md
+    - Railway → docs/03-deployer/host-railway.md
+    - Coolify → docs/03-deployer/host-coolify.md
+    - Vercel + autre → docs/03-deployer/host-generic.md
+
+5. Collecte des credentials :
+   Pour chaque service externe (Supabase Cloud, Anthropic, optionnellement Resend),
+   ouvre le lien d'inscription dans le browser via l'instruction
+   "Va sur <URL>, crée un compte si tu n'en as pas, copie-moi
+    ces N valeurs : XXX, YYY, ...". Attends sa réponse avant de continuer.
+
    ⚠️ Ne jamais afficher les credentials reçus dans tes messages suivants.
    Utilise <REDACTED> ou les premiers/derniers caractères seulement.
 
-7. Application :
-   - Crée .env avec les valeurs collectées
-   - Applique les migrations Supabase
-   - pnpm install, pnpm db:seed, pnpm typecheck (doit passer)
-   - Si déploiement choisi : exécute les commandes du runbook
+6. Application :
+   - Crée .env avec les valeurs collectées (cf. cloud-setup.md §3)
+   - Applique les migrations sur Supabase Cloud (psql, supabase CLI, ou SQL Editor)
+   - pnpm install, pnpm --filter @rh/db seed, pnpm typecheck, pnpm test
+   - Si tout passe : déploie selon la recipe choisie.
 
-8. Vérification finale :
+7. Vérification finale :
    - curl PUBLIC_API_URL/api/health → {"ok":true}
-   - Demande à l'utilisateur de se logger sur PUBLIC_WEB_URL via magic link
+   - Demande à l'utilisateur de se logger sur PUBLIC_WEB_URL
    - Demande-lui de créer un poste de test → "Nouveau poste"
+   - Demande-lui de tester /postuler/<slug> en fenêtre privée
    - Vérifie qu'il voit le dashboard avec ses couleurs/nom personnalisés
 
-9. Clôture :
-   - Récap : 3 URLs (web, api, fiches), 3 credentials critiques à garder
-     en lieu sûr (Supabase service_role, Anthropic key, FORMBRICKS_WEBHOOK_SECRET)
+8. Clôture :
+   - Récap : 3 URLs (web, api, /postuler/<slug>), 2 credentials critiques à garder
+     en lieu sûr (Supabase service_role, Anthropic key)
    - Pointe vers docs/05-operer/runbook-incidents.md pour les bugs connus
    - Pointe vers docs/04-personnaliser/ s'il veut aller plus loin
 ```
@@ -103,13 +107,10 @@ try {
 }
 ```
 
-### 5. Webhook Formbricks signé via query-param
-Formbricks self-hosted ne supporte pas HMAC. La signature passe par `?token=<FORMBRICKS_WEBHOOK_SECRET>` dans l'URL du webhook. Le code de `setup-survey` bake automatiquement le token. Si tu modifies un webhook à la main, n'oublie pas le `?token=`.
-
-### 6. Radix Select interdit value=""
+### 5. Radix Select interdit value=""
 `<SelectItem value="">` crash. Utilise un sentinel `"__none__"` mappé à `""` dans `onValueChange`.
 
-### 7. Tracking coût Anthropic
+### 6. Tracking coût Anthropic
 Chaque appel `messages.create()` doit être suivi de `logAiCall({...})` avec `prompt_type` clair. Voir `apps/api/src/services/claude.ts` pour le pattern.
 
 ---

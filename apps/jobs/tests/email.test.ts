@@ -17,7 +17,8 @@ describe("sendEmail", () => {
     const out = await sendEmail({ to: "x@y", subject: "hello", body: "world" });
     expect(out.message_id).toBe("msg_1");
     const arg = sendMock.mock.calls[0][0];
-    expect(arg.from).toMatch(/L'équipe Recrutement/);
+    // BRAND_NAME peut être surchargée via env — le test vérifie le format générique
+    expect(arg.from).toMatch(/L'équipe \S.*<.+@.+>/);
     expect(arg.html).toContain("<body>world</body>");
   });
 

@@ -6,7 +6,7 @@ Synthèse des bugs et gotchas rencontrés pendant le développement et la QA. Si
 
 ### `Error: pg-boss send returned null id` dans les logs API
 
-**Symptôme** : tout endpoint qui enqueue (`/rescore`, `/communications/:id/send`, webhook Formbricks) retourne **500**.
+**Symptôme** : tout endpoint qui enqueue (`/rescore`, `/communications/:id/send`, soumission candidature publique) retourne **500**.
 
 **Cause** : pg-boss v10 exige `boss.createQueue(name)` explicite avant `send()` ou `work()`. v9 le faisait implicitement, v10 non.
 
@@ -25,18 +25,6 @@ Synthèse des bugs et gotchas rencontrés pendant le développement et la QA. Si
 </Select>
 ```
 
-### Webhook Formbricks retourne 401 alors que tout est configuré
-
-**Symptôme** : tu as set `FORMBRICKS_WEBHOOK_SECRET` côté API mais les soumissions Formbricks reviennent en 401.
-
-**Cause** : Formbricks self-hosted v3 ne supporte ni HMAC signing ni custom headers. Il fait juste un POST sur l'URL configurée.
-
-**Fix** : modifie l'URL du webhook Formbricks pour inclure le token en query-param :
-```
-https://api.your-domain.example/webhooks/formbricks?token=<FORMBRICKS_WEBHOOK_SECRET>
-```
-Note : le code de `setup-survey` (route `POST /api/postes/:id/setup-survey`) bake automatiquement le token dans l'URL. Si tu modifies le webhook à la main dans Formbricks UI, n'oublie pas le `?token=`.
-
 ### Le worker semble vivant mais aucune notification d'échec n'arrive
 
 **Symptôme** : tu sais qu'un job a fail (rescore d'une candidature avec un CV PDF cassé, par exemple), mais ton ntfy/Slack ne reçoit rien.
@@ -44,22 +32,6 @@ Note : le code de `setup-survey` (route `POST /api/postes/:id/setup-survey`) bak
 **Cause** : pg-boss v10 a supprimé l'événement global `failed.<queueName>`. Si tu utilisais `boss.on('failed.intake', ...)`, ça ne fire jamais.
 
 **Fix** : déjà appliqué. Chaque handler `apps/jobs/src/handlers/*.ts` a un `try/catch` qui appelle `notifyJobFailure` SUR LA DERNIÈRE retry uniquement (sinon spam). Si tu ajoutes un nouveau handler, suis le pattern existant.
-
-### Création de formulaire Formbricks → 500 "Invalid input"
-
-**Symptôme** : "Créer le formulaire" sur un poste retourne 500. Logs API : `Formbricks createSurvey 400 ... questions.5: Invalid input`.
-
-**Cause** : le LLM génère `choices: ["A", "B"]` mais Formbricks v3 attend `choices: [{id, label: {default}}]`.
-
-**Fix** : déjà appliqué dans `apps/api/src/services/formbricks.ts` (mapper qui transforme strings → objets).
-
-### Création de formulaire Formbricks → 401 unauthorized
-
-**Symptôme** : 401 alors que `FORMBRICKS_API_KEY` est bien set.
-
-**Cause** : ta clé API Formbricks est sur un environnement différent de `FORMBRICKS_ENVIRONMENT_ID`.
-
-**Fix** : dans Formbricks UI → API Keys → recrée une clé sur le bon environnement avec scope **Manage**. Mets à jour `FORMBRICKS_API_KEY` côté API + redeploy.
 
 ## 🟡 Mineurs (à connaître)
 

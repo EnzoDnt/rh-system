@@ -69,7 +69,7 @@ flowchart LR
 
 ### 2. 📝 Génération automatique du formulaire de candidature
 
-Sur chaque poste, tu cliques **"Créer le formulaire"**. L'IA génère 5-8 questions personnalisées au poste (en plus des 5 questions standards : nom, email, téléphone, LinkedIn, CV). Le formulaire est créé automatiquement dans **Formbricks**, le webhook configuré, le lien partageable.
+Sur chaque poste, tu cliques **"Générer questions IA"**. L'IA génère 3-8 questions personnalisées au poste (en plus des 5 questions standards : nom, email, téléphone, LinkedIn, CV). Le formulaire est servi par le frontend à `/postuler/<slug>` (page publique, no auth, layout minimal).
 
 | Standards (toujours là) | Générées par l'IA (varient par poste) |
 |---|---|
@@ -77,13 +77,13 @@ Sur chaque poste, tu cliques **"Créer le formulaire"**. L'IA génère 5-8 quest
 | Email | "Quel est ton process pour une code review?" |
 | Téléphone | "Avec quel framework backend tu te sens le plus à l'aise?" |
 | LinkedIn | "Combien d'années d'expérience en équipe distribuée?" |
-| Lien CV (Drive/Dropbox) | "Disponibilité pour démarrer?" |
+| Upload CV (PDF) | "Disponibilité pour démarrer?" |
 
-**Pas besoin de copier-coller** vers Formbricks. Tout se fait depuis le dashboard.
+Le formulaire est intégré nativement au frontend — pas d'outil tiers (Formbricks, Tally, Typeform) à configurer. Tu partages le lien `/postuler/<slug>` directement aux candidats.
 
 ### 3. 🧠 Scoring IA de chaque candidature
 
-À chaque soumission Formbricks, le worker :
+À chaque soumission de candidature, le worker :
 1. Télécharge le CV (PDF), extrait le texte
 2. (optionnel) Scrape le profil LinkedIn via Apify
 3. Envoie l'ensemble à Claude avec les critères du poste

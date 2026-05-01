@@ -7,13 +7,18 @@ Un système de recrutement automatisé : **un candidat soumet sa candidature →
 ## Le pipeline candidat (vu de loin)
 
 ```
-1. Candidat remplit un formulaire Formbricks (nom, email, CV, LinkedIn, réponses aux questions IA-générées)
+1. Candidat remplit le formulaire public servi par le frontend
+   (page /postuler/<slug>, no auth, layout minimal). Les questions sont
+   générées par l'IA à la création du poste : nom, email, CV PDF, LinkedIn,
+   + 3-8 questions spécifiques au poste.
                        │
                        ▼
-2. Webhook → API → enqueue intake job (pg-boss)
+2. POST /api/public/applications/<slug> → API persiste la candidature
+   et enqueue intake job (pg-boss)
                        │
                        ▼
 3. Worker intake : récupère le CV PDF, extrait le texte, scrape LinkedIn
+   (si APIFY_API_KEY configurée, sinon skip)
                        │
                        ▼
 4. Worker scoring (Claude Sonnet) : applique les guardrails anti-injection,
@@ -21,13 +26,15 @@ Un système de recrutement automatisé : **un candidat soumet sa candidature →
                        │
                        ▼
 5. Worker communication (Claude Sonnet) : génère un brouillon d'email adapté
-   (invitation / refus / relance) + insère le lien Calendly si applicable
+   (invitation / refus / relance), pré-sélectionné selon la recommandation IA
                        │
                        ▼
-6. RH valide ou édite l'email dans le dashboard, clique "envoyer"
+6. RH valide ou édite l'email dans le dashboard /candidatures/<id>,
+   choisit l'action : Copier / Ouvrir dans son client mail / Marquer envoyé /
+   Envoyer via Resend (si RESEND_API_KEY configurée)
                        │
                        ▼
-7. Resend délivre. Le candidat clique le lien Calendly → réservation auto.
+7. Le candidat reçoit l'email et répond directement à l'expéditeur.
 ```
 
 Tout est piloté depuis un **dashboard React** privé (`https://rh.your-domain.example`), accessible aux RH par lien magique Supabase.
@@ -44,12 +51,11 @@ Tout est piloté depuis un **dashboard React** privé (`https://rh.your-domain.e
 
 ## Ce qui n'est PAS inclus (et qu'il faut brancher)
 
-- Le compte **Supabase** (Auth + Postgres + Storage)
-- Le compte **Anthropic** (Claude Sonnet 4.6+ recommandé)
-- Le compte **Resend** (email delivery, ou alternative)
-- Le compte **Formbricks** self-hosted ou cloud (collecte de candidatures)
-- Le compte **Calendly** (planning des entretiens) — optionnel
-- Un **VPS** ou un cloud (Vercel + Railway, Coolify+Hetzner, etc.) — voir `03-deployer/`
+- Le compte **Supabase Cloud** (Auth + Postgres + Storage) — obligatoire
+- Le compte **Anthropic** (Claude Sonnet 4.6+ recommandé) — obligatoire
+- Un hébergeur pour les 3 services (Railway, Coolify, Vercel + Fly, Docker pur…) — voir [`03-deployer/`](../03-deployer/)
+- Le compte **Resend** (email delivery automatique) — optionnel, fallback `mailto:` dans le client mail de l'utilisateur
+- Le compte **Apify** (scraping LinkedIn pour enrichir le scoring) — optionnel
 
 ## Pour qui c'est fait
 

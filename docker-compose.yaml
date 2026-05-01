@@ -29,8 +29,8 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       RESEND_API_KEY: ${RESEND_API_KEY}
-      RESEND_FROM: ${RESEND_FROM}
-      CALENDLY_TOKEN: ${CALENDLY_TOKEN}
+      BRAND_NAME: ${BRAND_NAME}
+      BRAND_FROM_EMAIL: ${BRAND_FROM_EMAIL}
       APIFY_API_KEY: ${APIFY_API_KEY}
       PUBLIC_API_URL: ${PUBLIC_API_URL}
       PUBLIC_WEB_URL: ${PUBLIC_WEB_URL}
@@ -51,8 +51,8 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       RESEND_API_KEY: ${RESEND_API_KEY}
-      RESEND_FROM: ${RESEND_FROM}
-      CALENDLY_TOKEN: ${CALENDLY_TOKEN}
+      BRAND_NAME: ${BRAND_NAME}
+      BRAND_FROM_EMAIL: ${BRAND_FROM_EMAIL}
       APIFY_API_KEY: ${APIFY_API_KEY}
       NTFY_TOPIC: ${NTFY_TOPIC}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
@@ -60,5 +60,7 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "pgrep", "-f", "node dist/index.js"]
+      # Le worker tourne en TS source via tsx (pas de build dist/), donc le
+      # process se reconnaît au mot-clé "tsx" dans la ligne de commande.
+      test: ["CMD", "pgrep", "-f", "tsx"]
       interval: 60s
