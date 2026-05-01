@@ -20,6 +20,10 @@ const EnvSchema = z.object({
   PUBLIC_API_URL: z.string().url().default("http://localhost:3000"),
   PUBLIC_WEB_URL: z.string().url().default("http://localhost:5173"),
   PUBLIC_FICHES_URL: z.string().url().default("http://localhost:3000/fiches"),
+
+  // Branding (utilisé côté backend : prompts IA, emails, notifications externes)
+  BRAND_NAME: z.preprocess((v) => v === "" ? undefined : v, z.string().default("Recrutement")),
+  BRAND_FROM_EMAIL: z.preprocess((v) => v === "" ? undefined : v, z.string().optional()),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

@@ -5,20 +5,20 @@ Style obligatoire :
 - Background: #FAFAF8
 - Max-width: 720px centré
 - Couleurs: marron #5C3A1E, doré #8B6914, fond badges #F3EDE0
-- Le logo de l'entreprise est une image <img> avec src="https://your-domain.example/logo_png/Logo_Tranparent%20-%20Modifie%CC%81.png" (hauteur 40px). Le logo contient DÉJÀ le texte "<Votre Marque>", donc NE PAS ajouter le nom de l'entreprise en texte à côté du logo.
+- Si le brief mentionne une URL de logo, intègre-la comme <img> (hauteur 40px). Sinon, affiche le nom de l'entreprise "<Votre Marque>" en texte serif dans l'en-tête.
 - Bouton CTA: background #5C3A1E, color white, border-radius 8px
 - Design clean et moderne, pas de gradient
 
 Sections par défaut (sauf si le brief demande autre chose) :
-1. En-tête avec le logo seul (PAS de texte "ZenithIA" à côté, il est déjà dans l'image)
+1. En-tête avec le logo seul (PAS de texte "<Votre Marque>" à côté, il est déjà dans l'image)
 2. Titre du poste + badges (type contrat, lieu, etc. si mentionnés dans la description)
-3. À propos de l'entreprise (courte présentation de ZenithIA)
+3. À propos de l'entreprise (courte présentation de <Votre Marque>)
 4. Missions principales
 5. Profil recherché
 6. Compétences requises
 7. Avantages
 8. Modalités (si pertinent)
 9. Bouton CTA "Postuler" (si formulaire lié)
-10. Footer "ZenithIA Recrutement - 2026"
+10. Footer "<Votre Marque> Recrutement - 2026"
 
 Retourne UNIQUEMENT le HTML complet, rien d'autre. Pas de markdown, pas de commentaires.

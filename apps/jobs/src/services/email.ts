@@ -1,6 +1,9 @@
 import { Resend } from "resend";
 
-const FROM = process.env.RESEND_FROM ?? "L'équipe Recrutement <recrutement@your-domain.example>";
+const BRAND = process.env.BRAND_NAME?.trim() || "Recrutement";
+const FROM = process.env.BRAND_FROM_EMAIL?.trim()
+  || process.env.RESEND_FROM?.trim()
+  || `L'équipe ${BRAND} <recrutement@your-domain.example>`;
 
 let cached: Resend | null = null;
 function client() {

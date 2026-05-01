@@ -23,11 +23,18 @@ function client(): Anthropic {
   return cached;
 }
 
+function applyBrand(text: string): string {
+  const brand = process.env.BRAND_NAME?.trim() || "Recrutement";
+  // Convention : prompts seedés contiennent <Votre Marque> / <Votre Entreprise>
+  // comme placeholder. Substitution juste-à-temps avant chaque appel Claude.
+  return text.replaceAll("<Votre Marque>", brand).replaceAll("<Votre Entreprise>", brand);
+}
+
 async function loadPrompt(type: string): Promise<{ system_prompt: string; model: string }> {
   const [row] = await db.select({ system_prompt: prompts.system_prompt, model: prompts.model })
     .from(prompts).where(eq(prompts.type, type));
   if (!row) throw new Error(`Prompt type=${type} not found in DB`);
-  return row;
+  return { system_prompt: applyBrand(row.system_prompt), model: row.model };
 }
 
 // --- SCORING (tool use) ---
@@ -41,7 +48,7 @@ export async function runScoringPrompt(opts: {
   linkedin_data: unknown | null;
 }): Promise<ScoringResponse> {
   const { system_prompt, model } = opts.systemPrompt && opts.model
-    ? { system_prompt: opts.systemPrompt, model: opts.model }
+    ? { system_prompt: applyBrand(opts.systemPrompt), model: opts.model }
     : await loadPrompt("scoring_candidat");
 
   const response = await client().messages.create({

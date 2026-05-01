@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs.js";
+import { BRAND_NAME, BRAND_LOGO_URL } from "@/lib/brand.js";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -53,7 +54,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg">
       <div className="w-full max-w-sm bg-surface border border-border rounded-[4px] shadow-sm p-8">
-        <h1 className="font-serif text-2xl text-dark mb-1">Recrutement</h1>
+        {BRAND_LOGO_URL && <img src={BRAND_LOGO_URL} alt={BRAND_NAME} className="h-12 w-auto mb-3" />}
+        <h1 className="font-serif text-2xl text-dark mb-1">{BRAND_NAME}</h1>
         <p className="text-sm text-text-muted mb-6">Connexion</p>
 
         <Tabs value={mode} onValueChange={handleTabChange}>

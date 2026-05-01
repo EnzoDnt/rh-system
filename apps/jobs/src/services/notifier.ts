@@ -1,6 +1,7 @@
 import { getDb, notifications } from "@rh/db";
 
 const db = getDb();
+const BRAND = process.env.BRAND_NAME?.trim() || "Recrutement";
 
 async function persistNotification(n: {
   type: string;
@@ -44,7 +45,7 @@ export async function notifyJobFailure(input: { queue: string; job_id: string; e
     message: `Job ${input.job_id} échoué après retries : ${input.error}`,
     contexte: input,
   });
-  await postExternal(`🚨 Recrutement — queue=${input.queue} job=${input.job_id} → ${input.error}`);
+  await postExternal(`🚨 ${BRAND} — queue=${input.queue} job=${input.job_id} → ${input.error}`);
 }
 
 export async function notifyHeartbeat() {
@@ -54,5 +55,5 @@ export async function notifyHeartbeat() {
     titre: "Worker alive",
     message: "Heartbeat horaire OK",
   });
-  await postExternal("Recrutement — heartbeat horaire OK (worker alive)");
+  await postExternal(`${BRAND} — heartbeat horaire OK (worker alive)`);
 }
