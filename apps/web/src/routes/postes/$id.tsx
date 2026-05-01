@@ -9,6 +9,7 @@ import { PosteEditor } from "@/components/postes/PosteEditor.js";
 import { PosteStats } from "@/components/postes/PosteStats.js";
 import { FichePosteEditor } from "@/components/postes/FichePosteEditor.js";
 import { PosteCandidaturesList } from "@/components/postes/PosteCandidaturesList.js";
+import { QuestionsEditorDialog } from "@/components/postes/QuestionsEditorDialog.js";
 
 function PublicFormLink({ poste }: { poste: any }) {
   const genQ = useGenerateQuestions(poste.id);
@@ -50,19 +51,27 @@ function PublicFormLink({ poste }: { poste: any }) {
           Slug non défini pour ce poste. Contacte l&apos;administrateur.
         </p>
       )}
-      <div className="pt-1">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => genQ.mutate()}
-          disabled={genQ.isPending}
-        >
-          <Sparkles size={14} className="mr-1" />
-          {genQ.isPending ? "Génération…" : "Régénérer les questions"}
-        </Button>
-        <p className="text-xs text-text-muted mt-1">
-          Régénère les questions du formulaire à partir de la description et des
-          critères du poste.
+      <div className="pt-1 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => genQ.mutate()}
+            disabled={genQ.isPending}
+          >
+            <Sparkles size={14} className="mr-1" />
+            {genQ.isPending ? "Génération…" : "Régénérer les questions"}
+          </Button>
+          {Array.isArray(poste.questions_json) && poste.questions_json.length > 0 && (
+            <QuestionsEditorDialog
+              posteId={poste.id}
+              initialQuestions={poste.questions_json}
+            />
+          )}
+        </div>
+        <p className="text-xs text-text-muted">
+          Régénère les questions à partir de la description et des critères, ou
+          modifie-les manuellement.
         </p>
       </div>
     </div>
