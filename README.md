@@ -54,7 +54,7 @@ Pas de souci, va sur [docs/02-demarrer/parcours-developpeur.md](docs/02-demarrer
 
 Tu peux quand même faire le setup en clic-à-clic, c'est juste plus long et plus fastidieux. Va sur [docs/02-demarrer/parcours-clic-a-clic.md](docs/02-demarrer/parcours-clic-a-clic.md). Compte 2h.
 
-⚠️ **Mais sérieusement je te re commande de passer par un agent ** : Cursor, Codex, Claude Code ou autre.
+⚠️ **Mais sérieusement je te re commande de passer par un agent** : Cursor, Codex, Claude Code ou autre.
 
 ---
 
