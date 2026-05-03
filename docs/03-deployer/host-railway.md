@@ -141,6 +141,8 @@ Railway donne par défaut des URLs `*.up.railway.app`. Tu peux soit :
 
 > ℹ️ Le **login mot de passe** ne nécessite pas cette config (pas de redirect après email). Tu peux donc tester ton premier login en mot de passe avant de configurer Supabase Auth, puis activer le magic link plus tard.
 
+> ⚠️ **SMTP Supabase par défaut = limité à ~3-4 emails/heure** (free tier, "for development use only"). Suffit pour les premiers tests mais bloquera vite des RH actifs sur le magic link. Pour la prod, configure un SMTP custom dans **Authentication → Email Templates → SMTP Settings** : [Resend](https://resend.com) (free tier 3000 mails/mois, le plus simple), SendGrid, AWS SES, etc. Doc Supabase : https://supabase.com/docs/guides/auth/auth-smtp.
+
 ---
 
 ## Étape 7 — Vérification post-deploy
@@ -184,6 +186,7 @@ Tu peux désactiver le auto-deploy sur certaines branches via Railway → servic
 | `worker` crash au boot avec `ANTHROPIC_API_KEY: String must contain` | Var manquante OU vide | Vérifie ANTHROPIC_API_KEY dans Variables du service worker |
 | `api` retourne 500 sur `/api/postes` | DATABASE_URL pas valide | Test depuis local : `psql "$DATABASE_URL" -c "SELECT 1;"` |
 | Magic link envoyé pointe sur `localhost` | Site URL Supabase pas à jour | Cf. Étape 6 — configure Site URL + Redirect URLs Supabase |
+| `Email rate limit exceeded` au login magic link | SMTP Supabase free tier plafonné à ~3-4 emails/heure | Bascule sur l'onglet « Mot de passe » en attendant le reset (~1h), puis configure un SMTP custom (Resend/SendGrid/SES) — cf. Étape 6, dernier callout |
 | Bouton primaire reste ambré | `VITE_BRAND_PRIMARY_COLOR` pas appliquée | Vérifie qu'elle est dans les Variables du service `web` (pas `api`), force un redeploy |
 | Génération IA échoue 401 | Pas de crédit Anthropic | Ajoute une carte sur console.anthropic.com |
 
